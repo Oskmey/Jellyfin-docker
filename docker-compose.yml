@@ -1,21 +1,16 @@
 
-
 services:
   ########################################################################
   # 1) Gluetun (VPN) Container
   ########################################################################
   gluetun:
-    image: qmcgaw/gluetun:latest
+    image: qmcgaw/gluetun
     container_name: gluetun
     cap_add:
-      - NET_ADMIN    # needed for modifying network (WireGuard)
+      - NET_ADMIN
     restart: unless-stopped
-
     environment:
-      # Basic environment variables
       - TZ=Europe/Stockholm
-
-      # VPN settings
       - VPN_SERVICE_PROVIDER=mullvad
       - VPN_TYPE=wireguard
       - WIREGUARD_ADDRESSES=${WIREGUARD_ADDRESSES}
@@ -24,109 +19,123 @@ services:
       - WIREGUARD_ENDPOINT=${WIREGUARD_ENDPOINT}
       - WIREGUARD_ALLOWED_IPS=${WIREGUARD_ALLOWED_IPS}
       - SERVER_COUNTRIES=Sweden
-      - DNS=${DNS}    
-
+      - DNS=${DNS}
     ports:
-      - "8096:8096"   # Jellyfin
       - "8989:8989"   # Sonarr
       - "7878:7878"   # Radarr
-      - "9696:9696"   # Prowlarr10.64.0.1
+      - "9696:9696"   # Prowlarr
       - "8080:8080"   # qBittorrent Web UI
-
+      - "8191:8191"   # Flaresolverr
 
   ########################################################################
   # 2) qBittorrent
   ########################################################################
   qbittorrent:
-    image: lscr.io/linuxserver/qbittorrent:latest
+    image: lscr.io/linuxserver/qbittorrent
     container_name: qbittorrent
-    network_mode: "service:gluetun"  
+    network_mode: "service:gluetun"
     depends_on:
       - gluetun
     restart: unless-stopped
-
     environment:
       - PUID=1000
       - PGID=1000
       - TZ=Europe/Stockholm
-
     volumes:
-      - "${COMMON_PATH}/configs/qbittorrent:/config"
-      - "${COMMON_PATH}/qbittorrent/downloads:/downloads"
+      - "${COMMON_PATH}/Qbittorrent/Config:/config"
+      - "${COMMON_PATH}/Downloads:/data/downloads"
 
   ########################################################################
   # 3) Sonarr
   ########################################################################
   sonarr:
-    image: lscr.io/linuxserver/sonarr:latest
+    image: lscr.io/linuxserver/sonarr
     container_name: sonarr
     network_mode: "service:gluetun"
     depends_on:
       - gluetun
+    restart: unless-stopped
     environment:
       - PUID=1000
       - PGID=1000
       - TZ=Europe/Stockholm
     volumes:
-      - "${COMMON_PATH}/configs/sonarr:/config"
-      - "${COMMON_PATH}/sonarr/tv:/tv"
-      - "${COMMON_PATH}/qbittorrent/downloads:/downloads"
-    restart: unless-stopped
+      - "${COMMON_PATH}/Sonarr/Config:/config"
+      - "${COMMON_PATH}/Sonarr/Backup:/data/Backup"
+      - "${COMMON_PATH}/Sonarr/tvshows:/data/tvshows"
+      - "${COMMON_PATH}/Downloads:/data/downloads"
 
   ########################################################################
   # 4) Radarr
   ########################################################################
   radarr:
-    image: lscr.io/linuxserver/radarr:latest
+    image: lscr.io/linuxserver/radarr
     container_name: radarr
     network_mode: "service:gluetun"
     depends_on:
       - gluetun
+    restart: unless-stopped
     environment:
       - PUID=1000
       - PGID=1000
       - TZ=Europe/Stockholm
     volumes:
-      - "${COMMON_PATH}/configs/radarr:/config"
-      - "${COMMON_PATH}/radarr/movies:/movies"
-      - "${COMMON_PATH}/qbittorrent/downloads:/downloads"
-    restart: unless-stopped
+      - "${COMMON_PATH}/Radarr/Config:/config"
+      - "${COMMON_PATH}/Radarr/Backup:/data/Backup"
+      - "${COMMON_PATH}/Radarr/movies:/data/movies"
+      - "${COMMON_PATH}/Downloads:/data/downloads"
 
   ########################################################################
   # 5) Prowlarr
   ########################################################################
   prowlarr:
-    image: lscr.io/linuxserver/prowlarr:latest
+    image: lscr.io/linuxserver/prowlarr
     container_name: prowlarr
     network_mode: "service:gluetun"
     depends_on:
       - gluetun
+    restart: unless-stopped
     environment:
       - PUID=1000
       - PGID=1000
+      - TZ=Europe/Stockholm
+    volumes:
+      - "${COMMON_PATH}/Prowlarr/Config:/config"
+      - "${COMMON_PATH}/Prowlarr/Backup:/data/Backup"
+      - "${COMMON_PATH}/Downloads:/data/downloads"
 
- ########################################################################
+
+  ########################################################################
   # 6) Jellyfin
   ########################################################################
   jellyfin:
-    image: jellyfin/jellyfin:latest
+    image: jellyfin/jellyfin
     container_name: jellyfin
-    network_mode: "service:gluetun"
-    depends_on:
-      - gluetun
+    ports:
+      - "8096:8096"  
     restart: unless-stopped
-
     environment:
       - UID=1000
       - GID=1000
       - TZ=Europe/Stockholm
-
     volumes:
-        - ${COMMON_PATH}:${COMMON_PATH}
-        - ${COMMON_PATH}/configs/jellyfin:/config
-        - ${COMMON_PATH}/jellyfin/cache:/cache
-        - ${COMMON_PATH}/sonarr/tv:/data/tvshows
-        - ${COMMON_PATH}/radarr/movies:/data/movies
-        - ${COMMON_PATH}/qbittorrent/downloads:/data/media_downloads
+      - "${COMMON_PATH}/Jellyfin/Config:/config"
+      - "${COMMON_PATH}/Jellyfin/Cache:/cache"
+      - "${COMMON_PATH}/Sonarr/tvshows:/data/tvshows"
+      - "${COMMON_PATH}/Radarr/movies:/data/movies"
+      - "${COMMON_PATH}/Downloads:/data/downloads"
 
-
+  ########################################################################
+  # 7) Flaresolverr
+  ########################################################################
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr
+    container_name: flaresolverr
+    network_mode: "service:gluetun"
+    depends_on:
+      - gluetun
+    restart: unless-stopped
+    environment:
+      - UID=1000
+      - GID=1000
+      - TZ=Europe/Stockholm
