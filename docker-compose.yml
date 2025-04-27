@@ -111,6 +111,11 @@ services:
   jellyfin:
     image: jellyfin/jellyfin
     container_name: jellyfin
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8096/health"]
+      interval: 5s
+      timeout: 10s
+      retries: 3
     ports:
       - "8096:8096"  
     restart: unless-stopped
@@ -139,3 +144,23 @@ services:
       - UID=1000
       - GID=1000
       - TZ=Europe/Stockholm
+
+  ########################################################################
+  # 8) Jellyseerr
+  ########################################################################
+  jellyseerr:
+    image: fallenbagel/jellyseerr:latest
+    container_name: jellyseerr
+    ports:
+      - "5055:5055"
+    restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Stockholm
+    volumes:
+      - "${COMMON_PATH}/Jellyseerr/Config:/app/config"
+    depends_on:
+      - jellyfin
+      - sonarr
+      - radarr
