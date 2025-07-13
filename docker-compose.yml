@@ -43,7 +43,6 @@ services:
       - PUID=1000
       - PGID=1000
       - TZ=Europe/Stockholm
-      - WEBUI_PORT=8081
     volumes:
       - "${COMMON_PATH}/Qbittorrent/Config:/config"
       - "${COMMON_PATH}/Downloads:/data/downloads"
