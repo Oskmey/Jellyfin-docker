@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+set -a
+source .env
+set +a
+
+
+
 # Ensure COMMON_PATH is set
 : "${COMMON_PATH:?Environment variable COMMON_PATH must be set (e.g. export COMMON_PATH=/path/to/media)}"
 
