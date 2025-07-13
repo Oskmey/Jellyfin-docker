@@ -39,3 +39,15 @@ for d in "${dirs[@]}"; do
 done
 
 echo "Done."
+
+
+KEY_FILE="$COMMON_PATH/Portainer/Data/portainer.key"
+
+if [[ -f "$KEY_FILE" ]]; then
+  echo "  ✓ Portainer key already exists at $KEY_FILE"
+else
+  echo "  + Generating new Portainer encryption key at $KEY_FILE"
+  head -c 32 /dev/urandom | base64 > "$KEY_FILE"
+  chmod 600 "$KEY_FILE"
+  echo "    → Done."
+fi

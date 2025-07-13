@@ -14,8 +14,6 @@ services:
     container_name: gluetun
     cap_add:
       - NET_ADMIN
-    devices:
-      - /dev/net/tun:/dev/net/tun
     restart: unless-stopped
     environment:
       - TZ=Europe/Stockholm
@@ -36,7 +34,8 @@ services:
   # 2) qBittorrent – shares Gluetun’s network namespace, no extra ports
   ########################################################################
   qbittorrent:
-    image: lscr.io/linuxserver/qbittorrent:4.6.5
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
     network_mode: "service:gluetun"       # rides inside the VPN stack
     depends_on: [ gluetun ]
     restart: unless-stopped
@@ -44,6 +43,7 @@ services:
       - PUID=1000
       - PGID=1000
       - TZ=Europe/Stockholm
+      - WEBUI_PORT=8081
     volumes:
       - "${COMMON_PATH}/Qbittorrent/Config:/config"
       - "${COMMON_PATH}/Downloads:/data/downloads"
@@ -165,12 +165,13 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - "${COMMON_PATH}/Portainer/Data:/data"
+      - "${COMMON_PATH}/Portainer/Data/portainer.key:/data/portainer.key:ro"
 
   ########################################################################
   # 10) Nginx Reverse Proxy – *only* public entry point on 80/443
   ########################################################################
   nginx-proxy:
-    image: nginx:1.27-alpine  # tiny & fast; pin a tag
+    image: nginx:stable
     container_name: nginx-proxy
     restart: unless-stopped
     networks: [ media ]
