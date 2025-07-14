@@ -59,11 +59,13 @@ services:
       - PUID=1000
       - PGID=1000
       - TZ=Europe/Stockholm
+      - URL_BASE=/sonarr
     volumes:
       - "${COMMON_PATH}/Sonarr/Config:/config"
       - "${COMMON_PATH}/Sonarr/Backup:/data/Backup"
       - "${COMMON_PATH}/Sonarr/tvshows:/data/tvshows"
       - "${COMMON_PATH}/Downloads:/data/downloads"
+
 
   ########################################################################
   # 4) Radarr – private, http://radarr:7878
@@ -77,11 +79,13 @@ services:
       - PUID=1000
       - PGID=1000
       - TZ=Europe/Stockholm
+      - URL_BASE=/radarr
     volumes:
       - "${COMMON_PATH}/Radarr/Config:/config"
       - "${COMMON_PATH}/Radarr/Backup:/data/Backup"
       - "${COMMON_PATH}/Radarr/movies:/data/movies"
       - "${COMMON_PATH}/Downloads:/data/downloads"
+
 
   ########################################################################
   # 5) Prowlarr – private, http://prowlarr:9696
@@ -95,10 +99,12 @@ services:
       - PUID=1000
       - PGID=1000
       - TZ=Europe/Stockholm
+      - URL_BASE=/prowlarr # MIGHT BE BREAKING THINGS
     volumes:
       - "${COMMON_PATH}/Prowlarr/Config:/config"
       - "${COMMON_PATH}/Prowlarr/Backup:/data/Backup"
       - "${COMMON_PATH}/Downloads:/data/downloads"
+      
 
   ########################################################################
   # 6) Jellyfin – private, http://jellyfin:8096 (WebSocket-ready)
