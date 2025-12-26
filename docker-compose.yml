@@ -27,7 +27,7 @@ services:
       - SERVER_COUNTRIES=Sweden
       - DNS=${DNS}
     ports:
-      - "8080:8080"       # optional; omit if you’ll proxy qB manually
+      - "8091:8080"       # optional; omit if you’ll proxy qB manually (8080 due to nas interface)
     networks: [ media ]
 
   ########################################################################
@@ -104,6 +104,8 @@ services:
       - "${COMMON_PATH}/Prowlarr/Config:/config"
       - "${COMMON_PATH}/Prowlarr/Backup:/data/Backup"
       - "${COMMON_PATH}/Downloads:/data/downloads"
+    dns:
+      - 1.1.1.1
       
 
   ########################################################################
@@ -119,6 +121,11 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    devices:
+      # Hardware Acceleration: Passes the host GPU to the container.
+      # NOTE: This /dev/dri mapping is only compatible with Intel (QuickSync) and AMD (VAAPI).
+      # For NVIDIA GPUs you must use the nvidia driver runtime instead.
+      - /dev/dri:/dev/dri
     environment:
       - UID=1000
       - GID=1000
@@ -142,7 +149,8 @@ services:
       - UID=1000
       - GID=1000
       - TZ=Europe/Stockholm
-
+    dns:
+      - 1.1.1.1
   ########################################################################
   # 8) Jellyseerr – private, http://jellyseerr:5055
   ########################################################################
@@ -158,6 +166,8 @@ services:
       - TZ=Europe/Stockholm
     volumes:
       - "${COMMON_PATH}/Jellyseerr/Config:/app/config"
+    ports:
+    - "5055:5055"
 
   ########################################################################
   # 9) Portainer – manage everything at https://HOST:9443
@@ -170,7 +180,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - "${COMMON_PATH}/Portainer/Data:/data"
-      - "${COMMON_PATH}/Portainer/Data/portainer.key:/data/portainer.key:ro"
+      - "${COMMON_PATH}/Portainer/Data/portainer.key:/data/portainer.key"
 
   ########################################################################
   # 10) Nginx Reverse Proxy – *only* public entry point on 80/443
@@ -181,7 +191,7 @@ services:
     restart: unless-stopped
     networks: [ media ]
     ports:
-      - "80:80"
+      - "8090:80"
     volumes:
       - "./nginx/conf.d:/etc/nginx/conf.d:ro"  # v-host files
       - "./nginx/logs:/var/log/nginx"
