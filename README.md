@@ -22,7 +22,7 @@ It includes:
 ## Quick Start
 
 1. Install prerequisites
-- Linux host with Docker Engine and Docker Compose plugin
+- Linux host with Docker Engine and Docker Compose (`docker compose` or `docker-compose`)
 - Mullvad WireGuard details
 - A path with enough storage for your media
 

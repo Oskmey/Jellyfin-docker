@@ -4,17 +4,40 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 ENV_FILE="${REPO_ROOT}/.env"
+COMPOSE_CMD=()
+COMPOSE_CMD_DISPLAY=""
 
 usage() {
-  cat <<USAGE
+  cat <<'USAGE'
 Usage: scripts/doctor.sh [--env-file PATH]
 
 Checks:
-  - docker and docker compose availability
+  - docker and compose availability (`docker compose` or `docker-compose`)
   - required env values
   - COMMON_PATH write access
   - docker compose config validation
 USAGE
+}
+
+detect_compose_command() {
+  if docker compose version >/dev/null 2>&1; then
+    COMPOSE_CMD=(docker compose)
+    COMPOSE_CMD_DISPLAY="docker compose"
+    return
+  fi
+
+  if command -v docker-compose >/dev/null 2>&1; then
+    COMPOSE_CMD=(docker-compose)
+    COMPOSE_CMD_DISPLAY="docker-compose"
+    return
+  fi
+
+  echo "ERROR: Docker Compose is not available. Install either the 'docker compose' plugin or the 'docker-compose' binary." >&2
+  exit 1
+}
+
+run_compose() {
+  "${COMPOSE_CMD[@]}" "$@"
 }
 
 resolve_path() {
@@ -57,10 +80,7 @@ if ! command -v docker >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! docker compose version >/dev/null 2>&1; then
-  echo "ERROR: docker compose plugin is not available." >&2
-  exit 1
-fi
+detect_compose_command
 
 if [[ ! -f "${ENV_FILE}" ]]; then
   echo "ERROR: Missing env file: ${ENV_FILE}" >&2
@@ -112,7 +132,7 @@ fi
 
 (
   cd "${REPO_ROOT}"
-  docker compose --env-file "${ENV_FILE}" config > /dev/null
+  run_compose --env-file "${ENV_FILE}" config > /dev/null
 )
 
-echo "Doctor checks passed."
+echo "Doctor checks passed (${COMPOSE_CMD_DISPLAY})."

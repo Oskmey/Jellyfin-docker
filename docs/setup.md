@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - Linux host with Docker Engine
-- Docker Compose plugin (`docker compose`)
+- Docker Compose (`docker compose` plugin or `docker-compose` binary)
 - User permissions to run Docker
 - Mullvad WireGuard details
 
@@ -18,7 +18,7 @@ What it does:
 - writes `.env`
 - creates missing media/config directories under `COMMON_PATH` and reuses existing folders safely
 - creates `Portainer/Data/portainer.key` if missing
-- runs `docker compose config` preflight validation
+- runs compose preflight validation (auto-detects `docker compose` or `docker-compose`)
 
 ## Non-interactive setup
 

@@ -15,6 +15,8 @@ KEY_CREATED=0
 KEY_REUSED=0
 WARNINGS=0
 FAILURES=0
+COMPOSE_CMD=()
+COMPOSE_CMD_DISPLAY=""
 
 if [[ -t 1 && "${NO_COLOR:-0}" != "1" ]]; then
   C_RESET='\033[0m'
@@ -126,7 +128,27 @@ resolve_path() {
 
 require_commands() {
   command -v docker >/dev/null 2>&1 || die "docker is not installed or not in PATH."
-  docker compose version >/dev/null 2>&1 || die "docker compose plugin is not available."
+  detect_compose_command
+}
+
+detect_compose_command() {
+  if docker compose version >/dev/null 2>&1; then
+    COMPOSE_CMD=(docker compose)
+    COMPOSE_CMD_DISPLAY="docker compose"
+    return
+  fi
+
+  if command -v docker-compose >/dev/null 2>&1; then
+    COMPOSE_CMD=(docker-compose)
+    COMPOSE_CMD_DISPLAY="docker-compose"
+    return
+  fi
+
+  die "Docker Compose is not available. Install either the 'docker compose' plugin or the 'docker-compose' binary."
+}
+
+run_compose() {
+  "${COMPOSE_CMD[@]}" "$@"
 }
 
 prompt_default() {
@@ -333,9 +355,9 @@ run_preflight() {
   log_info "Running docker compose preflight validation..."
   (
     cd "${REPO_ROOT}"
-    docker compose --env-file "${ENV_FILE}" config > /dev/null
+    run_compose --env-file "${ENV_FILE}" config > /dev/null
   )
-  log_ok "Compose preflight passed."
+  log_ok "Compose preflight passed (${COMPOSE_CMD_DISPLAY})."
 }
 
 interactive_collect() {
@@ -444,7 +466,7 @@ fi
 
 log_step "Prerequisite checks"
 require_commands
-log_ok "Docker and Docker Compose checks passed."
+log_ok "Docker and Docker Compose checks passed (${COMPOSE_CMD_DISPLAY})."
 
 log_step "Environment configuration"
 if [[ "${NON_INTERACTIVE}" -eq 1 ]]; then
@@ -497,4 +519,4 @@ print_final_summary
 
 printf "\n"
 log_ok "Setup completed successfully."
-printf "%b\n" "${C_BOLD}Next:${C_RESET} docker compose --env-file ${ENV_FILE} up -d"
+printf "%b\n" "${C_BOLD}Next:${C_RESET} ${COMPOSE_CMD_DISPLAY} --env-file ${ENV_FILE} up -d"
