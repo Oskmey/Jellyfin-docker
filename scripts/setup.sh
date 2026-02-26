@@ -164,6 +164,7 @@ TZ=${TZ}
 PUID=${PUID}
 PGID=${PGID}
 NGINX_PORT=${NGINX_PORT}
+JELLYSEERR_PORT=${JELLYSEERR_PORT}
 DNS=${DNS}
 SERVER_COUNTRIES=${SERVER_COUNTRIES}
 WIREGUARD_ADDRESSES=${WIREGUARD_ADDRESSES}
@@ -183,6 +184,7 @@ print_summary() {
   printf "  %-24s %s\n" "TZ" "${TZ}"
   printf "  %-24s %s\n" "PUID/PGID" "${PUID}/${PGID}"
   printf "  %-24s %s\n" "NGINX_PORT" "${NGINX_PORT}"
+  printf "  %-24s %s\n" "JELLYSEERR_PORT" "${JELLYSEERR_PORT}"
   printf "  %-24s %s\n" "DNS" "${DNS}"
   printf "  %-24s %s\n" "SERVER_COUNTRIES" "${SERVER_COUNTRIES}"
   printf "  %-24s %s\n" "WIREGUARD_ADDRESSES" "$(mask_value "${WIREGUARD_ADDRESSES}")"
@@ -250,6 +252,7 @@ interactive_collect() {
   local default_puid="${PUID:-$(id -u)}"
   local default_pgid="${PGID:-$(id -g)}"
   local default_nginx_port="${NGINX_PORT:-8090}"
+  local default_jellyseerr_port="${JELLYSEERR_PORT:-5055}"
   local default_dns="${DNS:-1.1.1.1}"
   local default_server_countries="${SERVER_COUNTRIES:-Sweden}"
   local default_allowed_ips="${WIREGUARD_ALLOWED_IPS:-0.0.0.0/0,::/0}"
@@ -261,6 +264,7 @@ interactive_collect() {
   PUID="$(prompt_default "PUID" "${default_puid}")"
   PGID="$(prompt_default "PGID" "${default_pgid}")"
   NGINX_PORT="$(prompt_default "NGINX_PORT" "${default_nginx_port}")"
+  JELLYSEERR_PORT="$(prompt_default "JELLYSEERR_PORT" "${default_jellyseerr_port}")"
   DNS="$(prompt_default "DNS" "${default_dns}")"
   SERVER_COUNTRIES="$(prompt_default "SERVER_COUNTRIES" "${default_server_countries}")"
 

@@ -8,7 +8,7 @@ It includes:
 - Library automation: Sonarr, Radarr, Prowlarr
 - Downloader behind VPN: qBittorrent + Gluetun
 - Admin tools: Portainer and FlareSolverr
-- Single local entrypoint: nginx reverse proxy
+- Local entrypoint: nginx reverse proxy (Jellyseerr is direct on its own port)
 
 ## Goals
 
@@ -37,7 +37,7 @@ docker compose up -d
 
 4. Open the services
 - `http://<host>:<NGINX_PORT>/jellyfin/`
-- `http://<host>:<NGINX_PORT>/jellyseerr/`
+- `http://<host>:<JELLYSEERR_PORT>/`
 - `http://<host>:<NGINX_PORT>/sonarr/`
 - `http://<host>:<NGINX_PORT>/radarr/`
 - `http://<host>:<NGINX_PORT>/prowlarr/`
@@ -65,6 +65,7 @@ Required values:
 
 Optional values:
 - `NGINX_PORT` (default `8090`)
+- `JELLYSEERR_PORT` (default `5055`)
 - `DNS` (default `1.1.1.1`)
 - `SERVER_COUNTRIES` (default `Sweden`)
 

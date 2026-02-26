@@ -36,7 +36,7 @@ Use this order for a clean first setup:
   - Category: `movies`
 
 6. Configure Jellyseerr
-- URL: `http://<host>:<NGINX_PORT>/jellyseerr/`
+- URL: `http://<host>:<JELLYSEERR_PORT>/`
 - Connect to Jellyfin, Sonarr, and Radarr using API keys
 
 7. Trigger library scans

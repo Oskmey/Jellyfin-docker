@@ -131,6 +131,8 @@ services:
     restart: unless-stopped
     networks:
       - media
+    ports:
+      - "${JELLYSEERR_PORT:-5055}:5055"
     depends_on:
       jellyfin:
         condition: service_started
