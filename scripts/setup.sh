@@ -151,11 +151,50 @@ run_compose() {
   "${COMPOSE_CMD[@]}" "$@"
 }
 
+normalize_env_file_line_endings() {
+  local env_path="$1"
+  local tmp_file
+
+  if LC_ALL=C grep -q $'\r' "${env_path}"; then
+    tmp_file="$(mktemp "${env_path}.tmp.XXXXXX")" || die "Failed to create temp file for ${env_path}."
+
+    if ! tr -d '\r' < "${env_path}" > "${tmp_file}"; then
+      rm -f "${tmp_file}"
+      die "Failed to normalize line endings in ${env_path}."
+    fi
+
+    if ! mv "${tmp_file}" "${env_path}"; then
+      rm -f "${tmp_file}"
+      die "Failed to replace ${env_path} after line ending normalization."
+    fi
+
+    log_warn "Detected Windows line endings in ${env_path}; converted to Unix LF."
+  fi
+}
+
+source_env_file() {
+  local env_path="$1"
+
+  [[ -f "${env_path}" ]] || die "Missing env file: ${env_path}"
+  normalize_env_file_line_endings "${env_path}"
+
+  set -a
+  # shellcheck disable=SC1090
+  source "${env_path}"
+  set +a
+}
+
 prompt_default() {
   local prompt="$1"
   local default="$2"
   local value
-  read -r -p "${prompt} [${default}]: " value
+
+  if [[ -n "${default}" ]]; then
+    read -r -p "${prompt} [${default}]: " value
+  else
+    read -r -p "${prompt}: " value
+  fi
+
   if [[ -z "${value}" ]]; then
     value="${default}"
   fi
@@ -193,8 +232,6 @@ validate_required_env() {
     WIREGUARD_PUBLIC_KEY
     WIREGUARD_ENDPOINT
     WIREGUARD_ALLOWED_IPS
-    UNPACKERR_SONARR_API_KEY
-    UNPACKERR_RADARR_API_KEY
   )
 
   for key in "${required[@]}"; do
@@ -210,12 +247,20 @@ validate_required_env() {
 }
 
 load_env_file() {
-  [[ -f "${ENV_FILE}" ]] || die "Missing env file: ${ENV_FILE}"
+  source_env_file "${ENV_FILE}"
+}
 
-  set -a
-  # shellcheck disable=SC1090
-  source "${ENV_FILE}"
-  set +a
+warn_optional_env() {
+  local optional=(
+    UNPACKERR_SONARR_API_KEY
+    UNPACKERR_RADARR_API_KEY
+  )
+
+  for key in "${optional[@]}"; do
+    if [[ -z "${!key:-}" ]]; then
+      log_warn "${key} is not set. Unpackerr will not authenticate until you add it."
+    fi
+  done
 }
 
 write_env_file() {
@@ -258,8 +303,17 @@ print_summary() {
   printf "  %-24s %s\n" "WIREGUARD_PUBLIC_KEY" "$(mask_value "${WIREGUARD_PUBLIC_KEY}")"
   printf "  %-24s %s\n" "WIREGUARD_ENDPOINT" "${WIREGUARD_ENDPOINT}"
   printf "  %-24s %s\n" "WIREGUARD_ALLOWED_IPS" "${WIREGUARD_ALLOWED_IPS}"
-  printf "  %-24s %s\n" "UNPACKERR_SONARR_API_KEY" "$(mask_value "${UNPACKERR_SONARR_API_KEY}")"
-  printf "  %-24s %s\n" "UNPACKERR_RADARR_API_KEY" "$(mask_value "${UNPACKERR_RADARR_API_KEY}")"
+  if [[ -n "${UNPACKERR_SONARR_API_KEY:-}" ]]; then
+    printf "  %-24s %s\n" "UNPACKERR_SONARR_API_KEY" "$(mask_value "${UNPACKERR_SONARR_API_KEY}")"
+  else
+    printf "  %-24s %s\n" "UNPACKERR_SONARR_API_KEY" "(not set)"
+  fi
+
+  if [[ -n "${UNPACKERR_RADARR_API_KEY:-}" ]]; then
+    printf "  %-24s %s\n" "UNPACKERR_RADARR_API_KEY" "$(mask_value "${UNPACKERR_RADARR_API_KEY}")"
+  else
+    printf "  %-24s %s\n" "UNPACKERR_RADARR_API_KEY" "(not set)"
+  fi
 }
 
 ensure_directory() {
@@ -390,10 +444,10 @@ interactive_collect() {
   HOMEPAGE_ALLOWED_HOSTS="$(prompt_default "HOMEPAGE_ALLOWED_HOSTS" "${default_homepage_allowed_hosts}")"
 
   printf "\n"
-  printf "%b\n" "${C_BOLD}Required API Keys and Secrets${C_RESET}"
+  printf "%b\n" "${C_BOLD}Optional Unpackerr API Keys${C_RESET}"
 
-  UNPACKERR_SONARR_API_KEY="$(prompt_required "UNPACKERR_SONARR_API_KEY" "${UNPACKERR_SONARR_API_KEY:-}")"
-  UNPACKERR_RADARR_API_KEY="$(prompt_required "UNPACKERR_RADARR_API_KEY" "${UNPACKERR_RADARR_API_KEY:-}")"
+  UNPACKERR_SONARR_API_KEY="$(prompt_default "UNPACKERR_SONARR_API_KEY (optional)" "${UNPACKERR_SONARR_API_KEY:-}")"
+  UNPACKERR_RADARR_API_KEY="$(prompt_default "UNPACKERR_RADARR_API_KEY (optional)" "${UNPACKERR_RADARR_API_KEY:-}")"
 
   printf "\n"
   printf "%b\n" "${C_BOLD}Required WireGuard Settings${C_RESET}"
@@ -475,10 +529,7 @@ if [[ "${NON_INTERACTIVE}" -eq 1 ]]; then
   log_ok "Loaded and validated ${ENV_FILE}."
 else
   if [[ -f "${ENV_FILE}" ]]; then
-    set -a
-    # shellcheck disable=SC1090
-    source "${ENV_FILE}"
-    set +a
+    source_env_file "${ENV_FILE}"
 
     if [[ "${FORCE}" -eq 0 ]]; then
       read -r -p "${ENV_FILE} exists. Reuse and validate current values? [Y/n]: " reuse
@@ -507,6 +558,7 @@ fi
 
 validate_required_env
 log_ok "Required env values are present."
+warn_optional_env
 
 log_step "Folder provisioning"
 create_directories

@@ -16,6 +16,7 @@
 What it does:
 - prompts for required settings
 - writes `.env`
+- allows Unpackerr API keys to be empty during first setup
 - creates missing media/config directories under `COMMON_PATH` and reuses existing folders safely
 - creates `Portainer/Data/portainer.key` if missing
 - runs compose preflight validation (auto-detects `docker compose` or `docker-compose`)

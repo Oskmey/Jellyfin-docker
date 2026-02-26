@@ -66,8 +66,6 @@ Required values:
 - `WIREGUARD_PUBLIC_KEY`
 - `WIREGUARD_ENDPOINT`
 - `WIREGUARD_ALLOWED_IPS`
-- `UNPACKERR_SONARR_API_KEY`
-- `UNPACKERR_RADARR_API_KEY`
 
 Optional values:
 - `NGINX_PORT` (default `8090`)
@@ -75,6 +73,8 @@ Optional values:
 - `DNS` (default `1.1.1.1`)
 - `SERVER_COUNTRIES` (default `Sweden`)
 - `HOMEPAGE_ALLOWED_HOSTS` (default `*` for local-only setups)
+- `UNPACKERR_SONARR_API_KEY` (set after Sonarr is configured)
+- `UNPACKERR_RADARR_API_KEY` (set after Radarr is configured)
 
 ## Common Commands
 

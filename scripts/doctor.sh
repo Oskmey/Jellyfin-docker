@@ -40,6 +40,34 @@ run_compose() {
   "${COMPOSE_CMD[@]}" "$@"
 }
 
+normalize_env_file_line_endings() {
+  local env_path="$1"
+  local tmp_file
+
+  if LC_ALL=C grep -q $'\r' "${env_path}"; then
+    tmp_file="$(mktemp "${env_path}.tmp.XXXXXX")"
+
+    if [[ -z "${tmp_file}" ]]; then
+      echo "ERROR: Failed to create temp file for ${env_path}." >&2
+      exit 1
+    fi
+
+    if ! tr -d '\r' < "${env_path}" > "${tmp_file}"; then
+      rm -f "${tmp_file}"
+      echo "ERROR: Failed to normalize line endings in ${env_path}." >&2
+      exit 1
+    fi
+
+    if ! mv "${tmp_file}" "${env_path}"; then
+      rm -f "${tmp_file}"
+      echo "ERROR: Failed to replace ${env_path} after line ending normalization." >&2
+      exit 1
+    fi
+
+    echo "WARN: Detected Windows line endings in ${env_path}; converted to Unix LF." >&2
+  fi
+}
+
 resolve_path() {
   local path_value="$1"
   if [[ "${path_value}" = /* ]]; then
@@ -86,6 +114,8 @@ if [[ ! -f "${ENV_FILE}" ]]; then
   echo "ERROR: Missing env file: ${ENV_FILE}" >&2
   exit 1
 fi
+
+normalize_env_file_line_endings "${ENV_FILE}"
 
 set -a
 # shellcheck disable=SC1090
