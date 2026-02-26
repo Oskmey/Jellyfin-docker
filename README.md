@@ -30,7 +30,7 @@ It includes:
 ```bash
 ./scripts/setup.sh
 ```
-This generates `.env`, creates data folders, and validates your Compose config.
+This generates `.env`, creates only missing data folders (reusing existing ones), and validates your Compose config.
 
 3. Start the stack
 ```bash

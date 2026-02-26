@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -8,6 +8,13 @@ ENV_FILE="${REPO_ROOT}/.env"
 NON_INTERACTIVE=0
 FORCE=0
 NO_COLOR=0
+CURRENT_STEP="startup"
+DIR_CREATED=0
+DIR_REUSED=0
+KEY_CREATED=0
+KEY_REUSED=0
+WARNINGS=0
+FAILURES=0
 
 if [[ -t 1 && "${NO_COLOR:-0}" != "1" ]]; then
   C_RESET='\033[0m'
@@ -17,6 +24,7 @@ if [[ -t 1 && "${NO_COLOR:-0}" != "1" ]]; then
   C_GREEN='\033[32m'
   C_YELLOW='\033[33m'
   C_BLUE='\033[34m'
+  C_CYAN='\033[36m'
 else
   C_RESET=''
   C_BOLD=''
@@ -25,6 +33,7 @@ else
   C_GREEN=''
   C_YELLOW=''
   C_BLUE=''
+  C_CYAN=''
 fi
 
 usage() {
@@ -41,9 +50,17 @@ USAGE
 }
 
 print_header() {
-  printf "%b\n" "${C_BOLD}${C_BLUE}Jellyfin Docker Setup${C_RESET}"
-  printf "%b\n" "${C_DIM}Repository: ${REPO_ROOT}${C_RESET}"
+  printf "%b\n" "${C_BOLD}${C_BLUE}============================================================${C_RESET}"
+  printf "%b\n" "${C_BOLD}${C_BLUE}  Jellyfin Docker Setup${C_RESET}"
+  printf "%b\n" "${C_DIM}  Repository: ${REPO_ROOT}${C_RESET}"
+  printf "%b\n" "${C_BOLD}${C_BLUE}============================================================${C_RESET}"
   printf "\n"
+}
+
+log_step() {
+  CURRENT_STEP="$*"
+  printf "\n"
+  printf "%b\n" "${C_BOLD}${C_CYAN}==> ${CURRENT_STEP}${C_RESET}"
 }
 
 log_info() {
@@ -54,7 +71,12 @@ log_ok() {
   printf "%b\n" "${C_GREEN}[ OK ]${C_RESET} $*"
 }
 
+log_skip() {
+  printf "%b\n" "${C_DIM}[SKIP]${C_RESET} $*"
+}
+
 log_warn() {
+  WARNINGS=$((WARNINGS + 1))
   printf "%b\n" "${C_YELLOW}[WARN]${C_RESET} $*"
 }
 
@@ -63,9 +85,25 @@ log_err() {
 }
 
 die() {
+  FAILURES=$((FAILURES + 1))
   log_err "$*"
   exit 1
 }
+
+on_error() {
+  local exit_code="$1"
+  local line_no="$2"
+  local command="$3"
+  local source_file="${BASH_SOURCE[1]:-${BASH_SOURCE[0]}}"
+
+  FAILURES=$((FAILURES + 1))
+  log_err "Step failed: ${CURRENT_STEP}"
+  log_err "Location: ${source_file}:${line_no}"
+  log_err "Exit code: ${exit_code}"
+  log_err "Command: ${command}"
+}
+
+trap 'on_error $? ${LINENO} "$BASH_COMMAND"' ERR
 
 mask_value() {
   local value="$1"
@@ -202,6 +240,58 @@ print_summary() {
   printf "  %-24s %s\n" "UNPACKERR_RADARR_API_KEY" "$(mask_value "${UNPACKERR_RADARR_API_KEY}")"
 }
 
+ensure_directory() {
+  local dir="$1"
+
+  if [[ -d "${dir}" ]]; then
+    DIR_REUSED=$((DIR_REUSED + 1))
+    log_skip "Reused existing folder: ${dir}"
+    return
+  fi
+
+  if [[ -e "${dir}" ]]; then
+    die "Path exists but is not a directory: ${dir}"
+  fi
+
+  mkdir -p "${dir}" || die "Failed to create folder: ${dir}"
+  DIR_CREATED=$((DIR_CREATED + 1))
+  log_ok "Created folder: ${dir}"
+}
+
+ensure_portainer_key() {
+  local key_file="$1"
+
+  if [[ -f "${key_file}" ]]; then
+    KEY_REUSED=$((KEY_REUSED + 1))
+    log_skip "Reused existing Portainer key: ${key_file}"
+    return
+  fi
+
+  if [[ -e "${key_file}" ]]; then
+    die "Portainer key path exists but is not a regular file: ${key_file}"
+  fi
+
+  (
+    umask 177
+    head -c 32 /dev/urandom | base64 > "${key_file}"
+  ) || die "Failed to generate Portainer key: ${key_file}"
+
+  chmod 600 "${key_file}" || die "Failed to apply permissions to Portainer key: ${key_file}"
+  KEY_CREATED=$((KEY_CREATED + 1))
+  log_ok "Created Portainer key: ${key_file}"
+}
+
+print_final_summary() {
+  printf "\n"
+  printf "%b\n" "${C_BOLD}Setup Summary${C_RESET}"
+  printf "  %-24s %s\n" "Directories created" "${DIR_CREATED}"
+  printf "  %-24s %s\n" "Directories reused" "${DIR_REUSED}"
+  printf "  %-24s %s\n" "Portainer keys created" "${KEY_CREATED}"
+  printf "  %-24s %s\n" "Portainer keys reused" "${KEY_REUSED}"
+  printf "  %-24s %s\n" "Warnings" "${WARNINGS}"
+  printf "  %-24s %s\n" "Failures" "${FAILURES}"
+}
+
 create_directories() {
   local base_path
   base_path="$(resolve_path "${COMMON_PATH}")"
@@ -226,21 +316,17 @@ create_directories() {
     "${base_path}/Portainer/Data"
   )
 
-  log_info "Ensuring data directories exist..."
+  log_info "COMMON_PATH resolved to: ${base_path}"
+  ensure_directory "${base_path}"
+
+  log_info "Ensuring media and config folders..."
   for dir in "${dirs[@]}"; do
-    mkdir -p "${dir}"
+    ensure_directory "${dir}"
   done
-  log_ok "Directories ready (${#dirs[@]} paths)."
+  log_ok "Folder checks complete (${#dirs[@]} targets)."
 
   local key_file="${base_path}/Portainer/Data/portainer.key"
-  if [[ ! -f "${key_file}" ]]; then
-    umask 177
-    head -c 32 /dev/urandom | base64 > "${key_file}"
-    chmod 600 "${key_file}"
-    log_ok "Generated Portainer key: ${key_file}"
-  else
-    log_info "Portainer key already exists: ${key_file}"
-  fi
+  ensure_portainer_key "${key_file}"
 }
 
 run_preflight() {
@@ -329,6 +415,7 @@ while [[ $# -gt 0 ]]; do
       C_GREEN=''
       C_YELLOW=''
       C_BLUE=''
+      C_CYAN=''
       shift
       ;;
     -h|--help)
@@ -348,12 +435,22 @@ fi
 [[ -f "${EXAMPLE_FILE}" ]] || die "Missing ${EXAMPLE_FILE}"
 
 print_header
-require_commands
-
+log_info "Environment file: ${ENV_FILE}"
 if [[ "${NON_INTERACTIVE}" -eq 1 ]]; then
-  log_info "Non-interactive mode enabled."
+  log_info "Mode: non-interactive"
+else
+  log_info "Mode: interactive"
+fi
+
+log_step "Prerequisite checks"
+require_commands
+log_ok "Docker and Docker Compose checks passed."
+
+log_step "Environment configuration"
+if [[ "${NON_INTERACTIVE}" -eq 1 ]]; then
   load_env_file
   validate_required_env
+  log_ok "Loaded and validated ${ENV_FILE}."
 else
   if [[ -f "${ENV_FILE}" ]]; then
     set -a
@@ -387,8 +484,16 @@ else
 fi
 
 validate_required_env
+log_ok "Required env values are present."
+
+log_step "Folder provisioning"
 create_directories
+
+log_step "Compose preflight"
 run_preflight
+
+log_step "Final summary"
+print_final_summary
 
 printf "\n"
 log_ok "Setup completed successfully."

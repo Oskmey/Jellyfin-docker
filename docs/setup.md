@@ -16,7 +16,7 @@
 What it does:
 - prompts for required settings
 - writes `.env`
-- creates media/config directories under `COMMON_PATH`
+- creates missing media/config directories under `COMMON_PATH` and reuses existing folders safely
 - creates `Portainer/Data/portainer.key` if missing
 - runs `docker compose config` preflight validation
 
