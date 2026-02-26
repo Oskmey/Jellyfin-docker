@@ -1,0 +1,7 @@
+* text=auto
+
+# Shell scripts must stay LF for Linux hosts/NAS systems.
+*.sh text eol=lf
+
+# Keep Windows launcher in CRLF format.
+*.bat text eol=crlf
