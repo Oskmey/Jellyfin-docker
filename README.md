@@ -1,113 +1,114 @@
-# Media NAS Stack
+# Jellyfin Docker NAS Stack
 
-A **self-hosted media management system** built with Docker, designed for organizing, streaming, and managing your personal media collection. This setup includes a VPN for security, automatic media discovery, and a beautiful web interface for streaming.
+A Linux-first, self-hosted media server stack built around Jellyfin and Docker.
 
-## What This Does
+It includes:
+- Streaming: Jellyfin
+- Requests: Jellyseerr
+- Library automation: Sonarr, Radarr, Prowlarr
+- Downloader behind VPN: qBittorrent + Gluetun
+- Admin tools: Portainer and FlareSolverr
+- Single local entrypoint: nginx reverse proxy
 
-This stack automates your media workflow:
+## Goals
 
-### **1. Media Management**
-- **Jellyfin**: Your own self-hosted Netflix-style media server with a beautiful UI
-- **Jellyseerr**: Request management system (like Ombi) for family/friends to request content
-
-### **2. Automatic Media Discovery**
-- **Sonarr**: Automatically downloads and organizes TV shows
-- **Radarr**: Automatically downloads and organizes movies
-- **Prowlarr**: Unified indexer management for all your sources
-
-### **3. Secure Torrenting**
-- **qBittorrent**: Private torrent client
-- **Gluetun**: VPN integration (Mullvad WireGuard) to protect your identity
-
-### **4. System Management**
-- **Portainer**: Web-based Docker management GUI
-- **Nginx**: Reverse proxy with WebSocket support for media streaming
+- Easy to set up for first-time self-hosters
+- Easy to run and maintain long-term
+- Clear defaults with predictable behavior
+- Reliable local LAN deployment
 
 ## Quick Start
 
-### Prerequisites
-- Docker and Docker Compose installed
-- VPN credentials (Mullvad recommended)
+1. Install prerequisites
+- Linux host with Docker Engine and Docker Compose plugin
+- Mullvad WireGuard details
+- A path with enough storage for your media
 
-### Setup
-
-1. Clone this repository
-2. add `.env` and configure your settings
-3. Run the setup script
-   ```bash
-   chmod +x folder_setup.sh
-   ./folder_setup.sh
-   ```
-4. Start the stack
-   ```bash
-   docker-compose up -d
-   ```
-
-### Access Your Services
-- **Jellyfin**: `http://your-server/jellyfin`
-- **Jellyseerr**: `http://your-server/jellyseerr`
-- **Sonarr**: `http://your-server/sonarr`
-- **Radarr**: `http://your-server/radarr`
-- **Prowlarr**: `http://your-server/prowlarr`
-- **qBittorrent**: `http://your-server/qbittorrent`
-- **Portainer**: `http://your-server/portainer`
-
-## How It Works
-
-### **Workflow**
-1. **Request Content**: Users request TV shows/movies via Jellyseerr
-2. **Search & Download**: Prowlarr searches indexers, Radarr/Sonarr find and download via qBittorrent
-3. **Organize**: Files are automatically organized into proper folders
-4. **Stream**: Jellyfin scans and makes media available for streaming
-
-### **VPN Protection**
-- qBittorrent runs inside the Gluetun VPN container
-- All torrent traffic is routed through Mullvad WireGuard
-- Your real IP remains hidden
-
-### **Reverse Proxy**
-- Nginx provides secure access to all services
-- WebSocket support enables smooth media streaming
-- Security headers protect against common vulnerabilities
-
-## Directory Structure
-
+2. Run interactive setup
+```bash
+./scripts/setup.sh
 ```
-${COMMON_PATH}/
-├── Qbittorrent/      # Torrent client config
-├── Downloads/        # Incoming downloads
-├── Sonarr/           # TV show management
-│   ├── Config/
-│   ├── Backup/
-│   └── tvshows/      # Organized TV shows
-├── Radarr/           # Movie management
-│   ├── Config/
-│   ├── Backup/
-│   └── movies/       # Organized movies
-├── Prowlarr/         # Indexer management
-├── Jellyfin/         # Media server
-│   ├── Config/
-│   └── Cache/
-├── Jellyseerr/       # Request management
-└── Portainer/        # Docker management
+This generates `.env`, creates data folders, and validates your Compose config.
+
+3. Start the stack
+```bash
+docker compose up -d
 ```
 
-## Important Notes
+4. Open the services
+- `http://<host>:<NGINX_PORT>/jellyfin/`
+- `http://<host>:<NGINX_PORT>/jellyseerr/`
+- `http://<host>:<NGINX_PORT>/sonarr/`
+- `http://<host>:<NGINX_PORT>/radarr/`
+- `http://<host>:<NGINX_PORT>/prowlarr/`
+- `http://<host>:<NGINX_PORT>/qbittorrent/`
+- `http://<host>:<NGINX_PORT>/portainer/`
 
-- This setup is intended only for **personal use** with legally obtained content
-- Do not use for piracy or copyright-infringing material
+5. Complete first-run app wiring
+Follow [`docs/first-run.md`](docs/first-run.md).
 
-## Customization
+## Configuration
 
-Edit the `.env` file to configure:
-- VPN settings (Mullvad credentials)
-- Timezone
-- User IDs (PUID/PGID)
-- Storage paths (COMMON_PATH)
+Copy and edit `.env.example` manually if you do not use setup script:
+```bash
+cp .env.example .env
+```
 
-## Security Features
+Required values:
+- `COMMON_PATH`
+- `TZ`, `PUID`, `PGID`
+- `WIREGUARD_ADDRESSES`
+- `WIREGUARD_PRIVATE_KEY`
+- `WIREGUARD_PUBLIC_KEY`
+- `WIREGUARD_ENDPOINT`
+- `WIREGUARD_ALLOWED_IPS`
 
-- VPN protection for torrenting
-- Secure reverse proxy with rate limiting
-- Security headers to prevent common attacks
-- Private network for inter-container communication
+Optional values:
+- `NGINX_PORT` (default `8090`)
+- `DNS` (default `1.1.1.1`)
+- `SERVER_COUNTRIES` (default `Sweden`)
+
+## Common Commands
+
+Start:
+```bash
+docker compose up -d
+```
+
+Stop:
+```bash
+docker compose down
+```
+
+Logs:
+```bash
+docker compose logs -f
+```
+
+Preflight checks:
+```bash
+./scripts/doctor.sh
+```
+
+## Documentation
+
+- Setup details: [`docs/setup.md`](docs/setup.md)
+- First-run wiring: [`docs/first-run.md`](docs/first-run.md)
+- Operations: [`docs/operations.md`](docs/operations.md)
+- Updating and rollback: [`docs/updating.md`](docs/updating.md)
+- Troubleshooting: [`docs/troubleshooting.md`](docs/troubleshooting.md)
+
+## Repository Layout
+
+- `docker-compose.yml`: stack definition
+- `.env.example`: config template
+- `scripts/setup.sh`: interactive setup + env generation
+- `scripts/doctor.sh`: environment and compose validation
+- `nginx/conf.d/default.conf`: reverse proxy routes
+- `docs/`: onboarding, operations, and troubleshooting
+
+## Notes
+
+- This project is HTTP-only for local self-hosting.
+- qBittorrent is intentionally routed through Gluetun VPN.
+- Use only legally obtained media.

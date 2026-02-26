@@ -1,197 +1,173 @@
-########################################################################
-# Networks (one shared bridge so containers can talk by service-name)
-########################################################################
+name: jellyfin-docker
+
 networks:
   media:
-    driver: bridge        # Docker’s built-in DNS handles service discovery
+    driver: bridge
+
+x-linuxserver-env: &linuxserver_env
+  PUID: ${PUID:?Set PUID in .env}
+  PGID: ${PGID:?Set PGID in .env}
+  TZ: ${TZ:?Set TZ in .env}
 
 services:
-  ########################################################################
-  # 1) Gluetun (VPN) – publishes qBittorrent UI on host:8080 → 8080
-  ########################################################################
   gluetun:
-    image: qmcgaw/gluetun:latest          # pin a tag in prod
+    image: qmcgaw/gluetun:v3.39.1
     container_name: gluetun
     cap_add:
       - NET_ADMIN
     restart: unless-stopped
     environment:
-      - TZ=Europe/Stockholm
-      - VPN_SERVICE_PROVIDER=mullvad
-      - VPN_TYPE=wireguard
-      - WIREGUARD_ADDRESSES=${WIREGUARD_ADDRESSES}
-      - WIREGUARD_PRIVATE_KEY=${WIREGUARD_PRIVATE_KEY}
-      - WIREGUARD_PUBLIC_KEY=${WIREGUARD_PUBLIC_KEY}
-      - WIREGUARD_ENDPOINT=${WIREGUARD_ENDPOINT}
-      - WIREGUARD_ALLOWED_IPS=${WIREGUARD_ALLOWED_IPS}
-      - SERVER_COUNTRIES=Sweden
-      - DNS=${DNS}
-    ports:
-      - "8091:8080"       # optional; omit if you’ll proxy qB manually (8080 due to nas interface)
-    networks: [ media ]
+      TZ: ${TZ:?Set TZ in .env}
+      VPN_SERVICE_PROVIDER: mullvad
+      VPN_TYPE: wireguard
+      WIREGUARD_ADDRESSES: ${WIREGUARD_ADDRESSES:?Set WIREGUARD_ADDRESSES in .env}
+      WIREGUARD_PRIVATE_KEY: ${WIREGUARD_PRIVATE_KEY:?Set WIREGUARD_PRIVATE_KEY in .env}
+      WIREGUARD_PUBLIC_KEY: ${WIREGUARD_PUBLIC_KEY:?Set WIREGUARD_PUBLIC_KEY in .env}
+      WIREGUARD_ENDPOINT: ${WIREGUARD_ENDPOINT:?Set WIREGUARD_ENDPOINT in .env}
+      WIREGUARD_ALLOWED_IPS: ${WIREGUARD_ALLOWED_IPS:?Set WIREGUARD_ALLOWED_IPS in .env}
+      SERVER_COUNTRIES: ${SERVER_COUNTRIES:-Sweden}
+      DNS: ${DNS:-1.1.1.1}
+    healthcheck:
+      test: ["CMD", "/gluetun-entrypoint", "healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    networks:
+      - media
 
-  ########################################################################
-  # 2) qBittorrent – shares Gluetun’s network namespace, no extra ports
-  ########################################################################
   qbittorrent:
-    image: lscr.io/linuxserver/qbittorrent:latest
+    image: lscr.io/linuxserver/qbittorrent:5.0.4
     container_name: qbittorrent
-    network_mode: "service:gluetun"       # rides inside the VPN stack
-    depends_on: [ gluetun ]
+    network_mode: service:gluetun
+    depends_on:
+      gluetun:
+        condition: service_healthy
     restart: unless-stopped
     environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Europe/Stockholm
+      <<: *linuxserver_env
+      WEBUI_PORT: 8080
     volumes:
-      - "${COMMON_PATH}/Qbittorrent/Config:/config"
-      - "${COMMON_PATH}/Downloads:/data/downloads"
+      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Qbittorrent/Config:/config
+      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Downloads:/data/downloads
 
-  ########################################################################
-  # 3) Sonarr – private, reachable at http://sonarr:8989 from Nginx
-  ########################################################################
   sonarr:
     image: lscr.io/linuxserver/sonarr:4.0.5
     container_name: sonarr
     restart: unless-stopped
-    networks: [ media ]
+    networks:
+      - media
     environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Europe/Stockholm
-      - URL_BASE=/sonarr
+      <<: *linuxserver_env
+      URL_BASE: /sonarr
     volumes:
-      - "${COMMON_PATH}/Sonarr/Config:/config"
-      - "${COMMON_PATH}/Sonarr/Backup:/data/Backup"
-      - "${COMMON_PATH}/Sonarr/tvshows:/data/tvshows"
-      - "${COMMON_PATH}/Downloads:/data/downloads"
+      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Sonarr/Config:/config
+      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Sonarr/Backup:/data/Backup
+      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Sonarr/tvshows:/data/tvshows
+      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Downloads:/data/downloads
 
-
-  ########################################################################
-  # 4) Radarr – private, http://radarr:7878
-  ########################################################################
   radarr:
     image: lscr.io/linuxserver/radarr:5.4.6
     container_name: radarr
     restart: unless-stopped
-    networks: [ media ]
+    networks:
+      - media
     environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Europe/Stockholm
-      - URL_BASE=/radarr
+      <<: *linuxserver_env
+      URL_BASE: /radarr
     volumes:
-      - "${COMMON_PATH}/Radarr/Config:/config"
-      - "${COMMON_PATH}/Radarr/Backup:/data/Backup"
-      - "${COMMON_PATH}/Radarr/movies:/data/movies"
-      - "${COMMON_PATH}/Downloads:/data/downloads"
+      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Radarr/Config:/config
+      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Radarr/Backup:/data/Backup
+      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Radarr/movies:/data/movies
+      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Downloads:/data/downloads
 
-
-  ########################################################################
-  # 5) Prowlarr – private, http://prowlarr:9696
-  ########################################################################
   prowlarr:
-    image: lscr.io/linuxserver/prowlarr:latest
+    image: lscr.io/linuxserver/prowlarr:1.28.2
     container_name: prowlarr
     restart: unless-stopped
-    networks: [ media ]
+    networks:
+      - media
     environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Europe/Stockholm
-      - URL_BASE=/prowlarr # MIGHT BE BREAKING THINGS
+      <<: *linuxserver_env
+      URL_BASE: /prowlarr
     volumes:
-      - "${COMMON_PATH}/Prowlarr/Config:/config"
-      - "${COMMON_PATH}/Prowlarr/Backup:/data/Backup"
-      - "${COMMON_PATH}/Downloads:/data/downloads"
-    dns:
-      - 1.1.1.1
-      
+      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Prowlarr/Config:/config
+      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Prowlarr/Backup:/data/Backup
+      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Downloads:/data/downloads
 
-  ########################################################################
-  # 6) Jellyfin – private, http://jellyfin:8096 (WebSocket-ready)
-  ########################################################################
   jellyfin:
-    image: jellyfin/jellyfin:latest
+    image: jellyfin/jellyfin:10.10.7
     container_name: jellyfin
+    user: ${PUID:?Set PUID in .env}:${PGID:?Set PGID in .env}
     restart: unless-stopped
-    networks: [ media ]
-    healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:8096/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    devices:
-      # Hardware Acceleration: Passes the host GPU to the container.
-      # NOTE: This /dev/dri mapping is only compatible with Intel (QuickSync) and AMD (VAAPI).
-      # For NVIDIA GPUs you must use the nvidia driver runtime instead.
-      - /dev/dri:/dev/dri
+    networks:
+      - media
     environment:
-      - UID=1000
-      - GID=1000
-      - TZ=Europe/Stockholm
+      TZ: ${TZ:?Set TZ in .env}
+    devices:
+      - /dev/dri:/dev/dri
     volumes:
-      - "${COMMON_PATH}/Jellyfin/Config:/config"
-      - "${COMMON_PATH}/Jellyfin/Cache:/cache"
-      - "${COMMON_PATH}/Sonarr/tvshows:/data/tvshows"
-      - "${COMMON_PATH}/Radarr/movies:/data/movies"
-      - "${COMMON_PATH}/Downloads:/data/downloads"
+      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Jellyfin/Config:/config
+      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Jellyfin/Cache:/cache
+      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Sonarr/tvshows:/data/tvshows
+      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Radarr/movies:/data/movies
+      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Downloads:/data/downloads
 
-  ########################################################################
-  # 7) Flaresolverr – private helper, http://flaresolverr:8191
-  ########################################################################
   flaresolverr:
     image: ghcr.io/flaresolverr/flaresolverr:v3.3.18
     container_name: flaresolverr
     restart: unless-stopped
-    networks: [ media ]
+    networks:
+      - media
     environment:
-      - UID=1000
-      - GID=1000
-      - TZ=Europe/Stockholm
-    dns:
-      - 1.1.1.1
-  ########################################################################
-  # 8) Jellyseerr – private, http://jellyseerr:5055
-  ########################################################################
+      LOG_LEVEL: info
+      LOG_HTML: "false"
+      CAPTCHA_SOLVER: none
+      TZ: ${TZ:?Set TZ in .env}
+
   jellyseerr:
-    image: fallenbagel/jellyseerr:latest
+    image: fallenbagel/jellyseerr:2.3.0
     container_name: jellyseerr
     restart: unless-stopped
-    networks: [ media ]
-    depends_on: [ jellyfin, sonarr, radarr ]
+    networks:
+      - media
+    depends_on:
+      jellyfin:
+        condition: service_started
+      sonarr:
+        condition: service_started
+      radarr:
+        condition: service_started
     environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Europe/Stockholm
+      LOG_LEVEL: info
+      TZ: ${TZ:?Set TZ in .env}
     volumes:
-      - "${COMMON_PATH}/Jellyseerr/Config:/app/config"
-    ports:
-    - "5055:5055"
+      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Jellyseerr/Config:/app/config
 
-  ########################################################################
-  # 9) Portainer – manage everything at https://HOST:9443
-  ########################################################################
   portainer:
-    image: portainer/portainer-ce:latest
+    image: portainer/portainer-ce:2.21.5
     container_name: portainer
     restart: unless-stopped
-    networks: [ media ]
+    networks:
+      - media
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - "${COMMON_PATH}/Portainer/Data:/data"
-      - "${COMMON_PATH}/Portainer/Data/portainer.key:/data/portainer.key"
+      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Portainer/Data:/data
+      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Portainer/Data/portainer.key:/data/portainer.key
 
-  ########################################################################
-  # 10) Nginx Reverse Proxy – *only* public entry point on 80/443
-  ########################################################################
   nginx-proxy:
-    image: nginx:stable
+    image: nginx:1.27.5
     container_name: nginx-proxy
     restart: unless-stopped
-    networks: [ media ]
+    networks:
+      - media
+    healthcheck:
+      test: ["CMD-SHELL", "nginx -t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     ports:
-      - "8090:80"
+      - ${NGINX_PORT:-8090}:80
     volumes:
-      - "./nginx/conf.d:/etc/nginx/conf.d:ro"  # v-host files
-      - "./nginx/logs:/var/log/nginx"
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/logs:/var/log/nginx
