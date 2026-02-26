@@ -133,6 +133,8 @@ validate_required_env() {
     WIREGUARD_PUBLIC_KEY
     WIREGUARD_ENDPOINT
     WIREGUARD_ALLOWED_IPS
+    UNPACKERR_SONARR_API_KEY
+    UNPACKERR_RADARR_API_KEY
   )
 
   for key in "${required[@]}"; do
@@ -172,6 +174,9 @@ WIREGUARD_PRIVATE_KEY=${WIREGUARD_PRIVATE_KEY}
 WIREGUARD_PUBLIC_KEY=${WIREGUARD_PUBLIC_KEY}
 WIREGUARD_ENDPOINT=${WIREGUARD_ENDPOINT}
 WIREGUARD_ALLOWED_IPS=${WIREGUARD_ALLOWED_IPS}
+UNPACKERR_SONARR_API_KEY=${UNPACKERR_SONARR_API_KEY}
+UNPACKERR_RADARR_API_KEY=${UNPACKERR_RADARR_API_KEY}
+HOMEPAGE_ALLOWED_HOSTS=${HOMEPAGE_ALLOWED_HOSTS}
 ENVEOF
   log_ok "Wrote ${ENV_FILE}"
 }
@@ -187,11 +192,14 @@ print_summary() {
   printf "  %-24s %s\n" "JELLYSEERR_PORT" "${JELLYSEERR_PORT}"
   printf "  %-24s %s\n" "DNS" "${DNS}"
   printf "  %-24s %s\n" "SERVER_COUNTRIES" "${SERVER_COUNTRIES}"
+  printf "  %-24s %s\n" "HOMEPAGE_ALLOWED_HOSTS" "${HOMEPAGE_ALLOWED_HOSTS}"
   printf "  %-24s %s\n" "WIREGUARD_ADDRESSES" "$(mask_value "${WIREGUARD_ADDRESSES}")"
   printf "  %-24s %s\n" "WIREGUARD_PRIVATE_KEY" "$(mask_value "${WIREGUARD_PRIVATE_KEY}")"
   printf "  %-24s %s\n" "WIREGUARD_PUBLIC_KEY" "$(mask_value "${WIREGUARD_PUBLIC_KEY}")"
   printf "  %-24s %s\n" "WIREGUARD_ENDPOINT" "${WIREGUARD_ENDPOINT}"
   printf "  %-24s %s\n" "WIREGUARD_ALLOWED_IPS" "${WIREGUARD_ALLOWED_IPS}"
+  printf "  %-24s %s\n" "UNPACKERR_SONARR_API_KEY" "$(mask_value "${UNPACKERR_SONARR_API_KEY}")"
+  printf "  %-24s %s\n" "UNPACKERR_RADARR_API_KEY" "$(mask_value "${UNPACKERR_RADARR_API_KEY}")"
 }
 
 create_directories() {
@@ -212,6 +220,9 @@ create_directories() {
     "${base_path}/Jellyfin/Config"
     "${base_path}/Jellyfin/Cache"
     "${base_path}/Jellyseerr/Config"
+    "${base_path}/Bazarr/Config"
+    "${base_path}/Unpackerr/Config"
+    "${base_path}/Homepage/Config"
     "${base_path}/Portainer/Data"
   )
 
@@ -255,6 +266,7 @@ interactive_collect() {
   local default_jellyseerr_port="${JELLYSEERR_PORT:-5055}"
   local default_dns="${DNS:-1.1.1.1}"
   local default_server_countries="${SERVER_COUNTRIES:-Sweden}"
+  local default_homepage_allowed_hosts="${HOMEPAGE_ALLOWED_HOSTS:-*}"
   local default_allowed_ips="${WIREGUARD_ALLOWED_IPS:-0.0.0.0/0,::/0}"
 
   printf "%b\n" "${C_BOLD}Environment Setup${C_RESET}"
@@ -267,6 +279,13 @@ interactive_collect() {
   JELLYSEERR_PORT="$(prompt_default "JELLYSEERR_PORT" "${default_jellyseerr_port}")"
   DNS="$(prompt_default "DNS" "${default_dns}")"
   SERVER_COUNTRIES="$(prompt_default "SERVER_COUNTRIES" "${default_server_countries}")"
+  HOMEPAGE_ALLOWED_HOSTS="$(prompt_default "HOMEPAGE_ALLOWED_HOSTS" "${default_homepage_allowed_hosts}")"
+
+  printf "\n"
+  printf "%b\n" "${C_BOLD}Required API Keys and Secrets${C_RESET}"
+
+  UNPACKERR_SONARR_API_KEY="$(prompt_required "UNPACKERR_SONARR_API_KEY" "${UNPACKERR_SONARR_API_KEY:-}")"
+  UNPACKERR_RADARR_API_KEY="$(prompt_required "UNPACKERR_RADARR_API_KEY" "${UNPACKERR_RADARR_API_KEY:-}")"
 
   printf "\n"
   printf "%b\n" "${C_BOLD}Required WireGuard Settings${C_RESET}"
