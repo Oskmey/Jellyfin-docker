@@ -133,7 +133,7 @@ services:
       - ${COMMON_PATH:?Set COMMON_PATH in .env}/Downloads:/data/downloads
 
   flaresolverr:
-    image: ghcr.io/flaresolverr/flaresolverr:v3.3.18
+    image: ghcr.io/flaresolverr/flaresolverr:v3.4.5
     container_name: flaresolverr
     restart: unless-stopped
     networks:
