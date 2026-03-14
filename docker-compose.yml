@@ -11,7 +11,7 @@ x-linuxserver-env: &linuxserver_env
 
 services:
   gluetun:
-    image: qmcgaw/gluetun:v3.39.1
+    image: qmcgaw/gluetun:latest
     container_name: gluetun
     cap_add:
       - NET_ADMIN
@@ -39,7 +39,7 @@ services:
       - media
 
   qbittorrent:
-    image: lscr.io/linuxserver/qbittorrent:5.0.4
+    image: lscr.io/linuxserver/qbittorrent:latest
     container_name: qbittorrent
     network_mode: service:gluetun
     depends_on:
@@ -54,7 +54,7 @@ services:
       - ${COMMON_PATH:?Set COMMON_PATH in .env}/Downloads:/data/downloads
 
   sonarr:
-    image: lscr.io/linuxserver/sonarr:4.0.5
+    image: lscr.io/linuxserver/sonarr:latest
     container_name: sonarr
     restart: unless-stopped
     networks:
@@ -69,7 +69,7 @@ services:
       - ${COMMON_PATH:?Set COMMON_PATH in .env}/Downloads:/data/downloads
 
   radarr:
-    image: lscr.io/linuxserver/radarr:5.4.6
+    image: lscr.io/linuxserver/radarr:latest
     container_name: radarr
     restart: unless-stopped
     networks:
@@ -84,7 +84,7 @@ services:
       - ${COMMON_PATH:?Set COMMON_PATH in .env}/Downloads:/data/downloads
 
   prowlarr:
-    image: lscr.io/linuxserver/prowlarr:1.28.2
+    image: lscr.io/linuxserver/prowlarr:latest
     container_name: prowlarr
     restart: unless-stopped
     networks:
@@ -101,7 +101,7 @@ services:
       - ${COMMON_PATH:?Set COMMON_PATH in .env}/Downloads:/data/downloads
 
   bazarr:
-    image: lscr.io/linuxserver/bazarr:1.5.1
+    image: lscr.io/linuxserver/bazarr:latest
     container_name: bazarr
     restart: unless-stopped
     networks:
@@ -115,7 +115,7 @@ services:
       - ${COMMON_PATH:?Set COMMON_PATH in .env}/Radarr/movies:/data/movies
 
   jellyfin:
-    image: jellyfin/jellyfin:10.11.5
+    image: jellyfin/jellyfin:latest
     container_name: jellyfin
     user: ${PUID:?Set PUID in .env}:${PGID:?Set PGID in .env}
     restart: unless-stopped
@@ -133,7 +133,7 @@ services:
       - ${COMMON_PATH:?Set COMMON_PATH in .env}/Downloads:/data/downloads
 
   flaresolverr:
-    image: ghcr.io/flaresolverr/flaresolverr:v3.4.5
+    image: ghcr.io/flaresolverr/flaresolverr:latest
     container_name: flaresolverr
     restart: unless-stopped
     networks:
@@ -148,7 +148,7 @@ services:
       TZ: ${TZ:?Set TZ in .env}
 
   jellyseerr:
-    image: fallenbagel/jellyseerr:2.7.3
+    image: fallenbagel/jellyseerr:latest
     container_name: jellyseerr
     restart: unless-stopped
     networks:
@@ -169,7 +169,7 @@ services:
       - ${COMMON_PATH:?Set COMMON_PATH in .env}/Jellyseerr/Config:/app/config
 
   homepage:
-    image: ghcr.io/gethomepage/homepage:v0.10.9
+    image: ghcr.io/gethomepage/homepage:latest
     container_name: homepage
     restart: unless-stopped
     networks:
@@ -184,7 +184,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
   nginx-proxy:
-    image: nginx:1.27.5
+    image: nginx:latest
     container_name: nginx-proxy
     restart: unless-stopped
     networks:
