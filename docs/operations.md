@@ -44,6 +44,11 @@ Run environment checks:
 ./scripts/security-check.sh
 ```
 
+Resync Homepage templates:
+```bash
+./scripts/sync-homepage-config.sh
+```
+
 Proxy health endpoint:
 ```bash
 curl -fsS "http://localhost:${NGINX_PORT:-8090}/health"
@@ -63,6 +68,7 @@ Back up `COMMON_PATH` regularly:
 - `Radarr/Config`
 - `Prowlarr/Config`
 - `Qbittorrent/Config`
+- `Homepage/Config`
 
 Example tar backup:
 ```bash

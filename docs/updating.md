@@ -9,21 +9,26 @@ If Docker is not on `PATH`, replace `docker compose` below with your host's comp
 git pull
 ```
 
-2. Review pinned image tags in `docker-compose.yml`
+2. Sync Homepage templates
+```bash
+./scripts/sync-homepage-config.sh
+```
+
+3. Review pinned image tags in `docker-compose.yml`
 - update only the services you want to upgrade
 - read release notes before major version jumps
 
-3. Pull images
+4. Pull images
 ```bash
 docker compose pull
 ```
 
-4. Recreate containers
+5. Recreate containers
 ```bash
 docker compose up -d
 ```
 
-5. Validate
+6. Validate
 ```bash
 ./scripts/doctor.sh
 ./scripts/security-check.sh

@@ -1,0 +1,22 @@
+title: Jellyfin Stack
+description: Media, automation, and support services
+target: _self
+headerStyle: clean
+statusStyle: dot
+iconStyle: theme
+useEqualHeights: true
+disableIndexing: true
+hideVersion: true
+layout:
+  Media:
+    style: row
+    columns: 2
+    icon: mdi-play-box-multiple-outline
+  Media Tools:
+    style: row
+    columns: 4
+    icon: mdi-tune-variant
+  Tools:
+    style: row
+    columns: 4
+    icon: mdi-tools

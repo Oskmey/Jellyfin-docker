@@ -53,8 +53,13 @@ Use this order for a clean first setup:
 
 8. Configure Homepage dashboard
 - URL: `http://<host>:<NGINX_PORT>/homepage/`
-- Edit files in `${COMMON_PATH}/Homepage/Config` (for example `services.yaml`)
-- Add cards/links for Jellyfin, Jellyseerr, Sonarr, Radarr, Prowlarr, qBittorrent, and Bazarr
+- The repo ships a default dashboard grouped into `Media`, `Media Tools`, and `Tools`
+- `./scripts/setup.sh` syncs those templates into `${COMMON_PATH}/Homepage/Config`
+- If you pull newer dashboard templates later, rerun:
+```bash
+./scripts/sync-homepage-config.sh
+```
+- Refresh Homepage with the button in the bottom-right corner after changing `settings.yaml`
 
 9. Install Jellyfin Intro Skipper plugin
 - In Jellyfin: Dashboard -> Plugins -> Catalog -> install `Intro Skipper`

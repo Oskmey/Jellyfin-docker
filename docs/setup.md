@@ -18,6 +18,7 @@ What it does:
 - prompts for required settings
 - writes `.env`
 - creates missing media/config directories under `COMMON_PATH` and reuses existing folders safely
+- syncs the repo-managed Homepage dashboard config into `${COMMON_PATH}/Homepage/Config`
 - runs compose preflight validation (auto-detects `docker compose` or `docker-compose`, with override support)
 
 ## Non-interactive setup
@@ -31,6 +32,17 @@ Use this when provisioning through scripts or CI:
 Requirements:
 - `.env` already exists
 - all required variables are populated
+
+## Homepage config sync
+
+The repository now ships Homepage config templates in `homepage/`. Sync them into the mounted config directory with:
+
+```bash
+./scripts/sync-homepage-config.sh
+```
+
+The sync target is `${COMMON_PATH}/Homepage/Config`.
+Set `JELLYSEERR_EXTERNAL_URL` in `.env` to the browser-facing Jellyseerr URL if your clients do not access the stack through `localhost`.
 
 ## Start stack
 

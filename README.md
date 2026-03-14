@@ -30,7 +30,7 @@ It includes:
 ```bash
 ./scripts/setup.sh
 ```
-This generates `.env`, creates only missing data folders (reusing existing ones), and validates your Compose config.
+This generates `.env`, creates only missing data folders (reusing existing ones), syncs the repo-managed Homepage config, and validates your Compose config.
 
 3. Start the stack
 ```bash
@@ -69,6 +69,7 @@ Required values:
 Optional values:
 - `NGINX_PORT` (default `8090`)
 - `JELLYSEERR_PORT` (default `5055`)
+- `JELLYSEERR_EXTERNAL_URL` (used by Homepage for the Jellyseerr card; set this to your browser-facing LAN URL)
 - `DNS` (default `1.1.1.1`)
 - `SERVER_COUNTRIES` (default `Sweden`)
 - `HOMEPAGE_ALLOWED_HOSTS` (default `*` for local-only setups)
@@ -96,6 +97,11 @@ Preflight checks:
 ./scripts/security-check.sh
 ```
 
+Resync Homepage config:
+```bash
+./scripts/sync-homepage-config.sh
+```
+
 ## Documentation
 
 - Setup details: [`docs/setup.md`](docs/setup.md)
@@ -108,7 +114,9 @@ Preflight checks:
 
 - `docker-compose.yml`: stack definition
 - `.env.example`: config template
+- `homepage/`: repo-managed Homepage dashboard templates
 - `scripts/setup.sh`: interactive setup + env generation
+- `scripts/sync-homepage-config.sh`: sync Homepage templates into `${COMMON_PATH}/Homepage/Config`
 - `scripts/doctor.sh`: environment and compose validation
 - `scripts/security-check.sh`: VPN and local routing verification
 - `nginx/conf.d/default.conf`: reverse proxy routes

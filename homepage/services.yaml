@@ -1,0 +1,58 @@
+- Media:
+    - Jellyfin:
+        icon: jellyfin.png
+        href: /jellyfin/
+        description: Stream movies and TV
+        siteMonitor: http://jellyfin:8096/
+
+    - Jellyseerr:
+        icon: jellyseerr.png
+        href: "{{HOMEPAGE_VAR_JELLYSEERR_URL}}"
+        description: Request and approval workflow
+        siteMonitor: http://jellyseerr:5055/
+
+- Media Tools:
+    - Sonarr:
+        icon: sonarr.png
+        href: /sonarr/
+        description: TV automation
+        siteMonitor: http://sonarr:8989/sonarr
+
+    - Radarr:
+        icon: radarr.png
+        href: /radarr/
+        description: Movie automation
+        siteMonitor: http://radarr:7878/radarr
+
+    - Prowlarr:
+        icon: prowlarr.png
+        href: /prowlarr/
+        description: Indexer management
+        siteMonitor: http://prowlarr:9696/prowlarr
+
+    - Bazarr:
+        icon: bazarr.png
+        href: /bazarr/
+        description: Subtitle automation
+        siteMonitor: http://bazarr:6767/bazarr
+
+- Tools:
+    - FlareSolverr:
+        icon: mdi-cloud-lock-outline
+        description: Cloudflare challenge solver
+
+    - qBittorrent:
+        icon: qbittorrent.png
+        href: /qbittorrent/
+        description: Downloader behind Gluetun
+        siteMonitor: http://gluetun:8080/
+
+    - Gluetun:
+        icon: mdi-shield-lock-outline
+        description: VPN tunnel for qBittorrent
+
+    - Nginx:
+        icon: nginx.png
+        href: /health
+        description: LAN reverse proxy health
+        siteMonitor: http://nginx-proxy/health

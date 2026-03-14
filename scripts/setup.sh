@@ -282,6 +282,7 @@ PUID=${PUID}
 PGID=${PGID}
 NGINX_PORT=${NGINX_PORT}
 JELLYSEERR_PORT=${JELLYSEERR_PORT}
+JELLYSEERR_EXTERNAL_URL=${JELLYSEERR_EXTERNAL_URL}
 DNS=${DNS}
 SERVER_COUNTRIES=${SERVER_COUNTRIES}
 WIREGUARD_ADDRESSES=${WIREGUARD_ADDRESSES}
@@ -303,6 +304,7 @@ print_summary() {
   printf "  %-24s %s\n" "PUID/PGID" "${PUID}/${PGID}"
   printf "  %-24s %s\n" "NGINX_PORT" "${NGINX_PORT}"
   printf "  %-24s %s\n" "JELLYSEERR_PORT" "${JELLYSEERR_PORT}"
+  printf "  %-24s %s\n" "JELLYSEERR_EXTERNAL_URL" "${JELLYSEERR_EXTERNAL_URL}"
   printf "  %-24s %s\n" "DNS" "${DNS}"
   printf "  %-24s %s\n" "SERVER_COUNTRIES" "${SERVER_COUNTRIES}"
   printf "  %-24s %s\n" "HOMEPAGE_ALLOWED_HOSTS" "${HOMEPAGE_ALLOWED_HOSTS}"
@@ -372,6 +374,12 @@ create_directories() {
   log_ok "Folder checks complete (${#dirs[@]} targets)."
 }
 
+sync_homepage_config() {
+  log_info "Syncing repo-managed Homepage config..."
+  "${SCRIPT_DIR}/sync-homepage-config.sh" --env-file "${ENV_FILE}"
+  log_ok "Homepage config synced."
+}
+
 run_preflight() {
   log_info "Running docker compose preflight validation..."
   (
@@ -383,8 +391,12 @@ run_preflight() {
 
 interactive_collect() {
   local default_tz="UTC"
+  local default_host="localhost"
   if [[ -f /etc/timezone ]]; then
     default_tz="$(< /etc/timezone)"
+  fi
+  if command -v hostname >/dev/null 2>&1; then
+    default_host="$(hostname -f 2>/dev/null || hostname 2>/dev/null || printf 'localhost')"
   fi
 
   local default_common_path="${COMMON_PATH:-./data}"
@@ -397,6 +409,7 @@ interactive_collect() {
   local default_server_countries="${SERVER_COUNTRIES:-Sweden}"
   local default_homepage_allowed_hosts="${HOMEPAGE_ALLOWED_HOSTS:-*}"
   local default_allowed_ips="${WIREGUARD_ALLOWED_IPS:-0.0.0.0/0,::/0}"
+  local jellyseerr_external_url_default=""
 
   printf "%b\n" "${C_BOLD}Environment Setup${C_RESET}"
 
@@ -406,6 +419,8 @@ interactive_collect() {
   PGID="$(prompt_default "PGID" "${default_pgid}")"
   NGINX_PORT="$(prompt_default "NGINX_PORT" "${default_nginx_port}")"
   JELLYSEERR_PORT="$(prompt_default "JELLYSEERR_PORT" "${default_jellyseerr_port}")"
+  jellyseerr_external_url_default="${JELLYSEERR_EXTERNAL_URL:-http://${default_host}:${JELLYSEERR_PORT}}"
+  JELLYSEERR_EXTERNAL_URL="$(prompt_default "JELLYSEERR_EXTERNAL_URL" "${jellyseerr_external_url_default}")"
   DNS="$(prompt_default "DNS" "${default_dns}")"
   SERVER_COUNTRIES="$(prompt_default "SERVER_COUNTRIES" "${default_server_countries}")"
   HOMEPAGE_ALLOWED_HOSTS="$(prompt_default "HOMEPAGE_ALLOWED_HOSTS" "${default_homepage_allowed_hosts}")"
@@ -522,6 +537,9 @@ log_ok "Required env values are present."
 
 log_step "Folder provisioning"
 create_directories
+
+log_step "Homepage dashboard sync"
+sync_homepage_config
 
 log_step "Compose preflight"
 run_preflight

@@ -172,6 +172,7 @@ services:
       PUID: ${PUID:?Set PUID in .env}
       PGID: ${PGID:?Set PGID in .env}
       HOMEPAGE_ALLOWED_HOSTS: ${HOMEPAGE_ALLOWED_HOSTS:-*}
+      HOMEPAGE_VAR_JELLYSEERR_URL: ${JELLYSEERR_EXTERNAL_URL:-http://localhost:5055}
     volumes:
       - ${COMMON_PATH:?Set COMMON_PATH in .env}/Homepage/Config:/app/config
       - /var/run/docker.sock:/var/run/docker.sock:ro
