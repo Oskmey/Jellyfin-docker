@@ -73,7 +73,7 @@ Check health endpoint:
 curl -fsS "http://localhost:${NGINX_PORT:-8090}/health"
 ```
 
-Verify LAN-only proxy routing:
+Verify proxy routes locally:
 ```bash
 ./scripts/security-check.sh
 ```

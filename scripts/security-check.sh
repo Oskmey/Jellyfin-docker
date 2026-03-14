@@ -14,7 +14,7 @@ Usage: scripts/security-check.sh [--env-file PATH]
 
 Checks:
   - docker compose config validation
-  - nginx syntax and LAN-only route responses
+  - nginx syntax and local route responses
   - Gluetun health
   - qBittorrent network namespace sharing with Gluetun
   - Mullvad egress from Gluetun and qBittorrent

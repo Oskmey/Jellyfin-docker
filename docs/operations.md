@@ -51,7 +51,7 @@ curl -fsS "http://localhost:${NGINX_PORT:-8090}/health"
 
 Security model:
 - qBittorrent is the only service routed through Gluetun/Mullvad.
-- nginx routes are LAN-only according to `NGINX_ALLOWED_CIDRS`.
+- nginx is intended for LAN use; router/NAS firewall rules should keep `NGINX_PORT` non-public.
 - Jellyseerr stays direct on `JELLYSEERR_PORT`.
 
 ## Backup basics
