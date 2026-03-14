@@ -32,6 +32,10 @@ Cause:
 
 Fix:
 - verify `WIREGUARD_*` values in `.env`
+- run the security verification script:
+```bash
+./scripts/security-check.sh
+```
 - check Gluetun logs:
 ```bash
 docker compose logs -f gluetun
@@ -68,3 +72,16 @@ Check health endpoint:
 ```bash
 curl -fsS "http://localhost:${NGINX_PORT:-8090}/health"
 ```
+
+Verify LAN-only proxy routing:
+```bash
+./scripts/security-check.sh
+```
+
+## Portainer does not open through nginx
+
+Cause:
+- Portainer is intentionally not proxied by nginx
+
+Fix:
+- access it only through a separate admin-only path you intentionally expose, or keep it inaccessible from the LAN edge

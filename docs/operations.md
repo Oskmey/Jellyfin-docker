@@ -41,12 +41,18 @@ docker compose logs -f sonarr
 Run environment checks:
 ```bash
 ./scripts/doctor.sh
+./scripts/security-check.sh
 ```
 
 Proxy health endpoint:
 ```bash
 curl -fsS "http://localhost:${NGINX_PORT:-8090}/health"
 ```
+
+Security model:
+- qBittorrent is the only service routed through Gluetun/Mullvad.
+- nginx routes are LAN-only.
+- Jellyseerr stays direct on `JELLYSEERR_PORT`.
 
 ## Backup basics
 

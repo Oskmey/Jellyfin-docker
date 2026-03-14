@@ -48,5 +48,11 @@ If Docker is not on `PATH`, run your host's compose binary directly:
 
 ```bash
 ./scripts/doctor.sh
+./scripts/security-check.sh
 curl -fsS "http://localhost:${NGINX_PORT:-8090}/health"
 ```
+
+Notes:
+- qBittorrent is the only service intentionally routed through Gluetun/Mullvad.
+- nginx only serves loopback and private LAN clients.
+- Jellyseerr remains direct on `JELLYSEERR_PORT` and is not protected by nginx access rules.

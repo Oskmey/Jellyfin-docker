@@ -46,7 +46,6 @@ docker compose up -d
 - `http://<host>:<NGINX_PORT>/bazarr/`
 - `http://<host>:<NGINX_PORT>/qbittorrent/`
 - `http://<host>:<NGINX_PORT>/homepage/`
-- `http://<host>:<NGINX_PORT>/portainer/`
 
 5. Complete first-run app wiring
 Follow [`docs/first-run.md`](docs/first-run.md).
@@ -94,6 +93,7 @@ docker compose logs -f
 Preflight checks:
 ```bash
 ./scripts/doctor.sh
+./scripts/security-check.sh
 ```
 
 ## Documentation
@@ -110,6 +110,7 @@ Preflight checks:
 - `.env.example`: config template
 - `scripts/setup.sh`: interactive setup + env generation
 - `scripts/doctor.sh`: environment and compose validation
+- `scripts/security-check.sh`: VPN and LAN-only routing verification
 - `nginx/conf.d/default.conf`: reverse proxy routes
 - `docs/`: onboarding, operations, and troubleshooting
 
@@ -117,5 +118,7 @@ Preflight checks:
 
 - This project is HTTP-only for local self-hosting.
 - qBittorrent is intentionally routed through Gluetun VPN.
+- nginx routes are intentionally LAN-only; do not forward `NGINX_PORT` publicly.
+- Jellyseerr stays direct on `JELLYSEERR_PORT`; if you keep that port, do not forward it publicly.
 - If Docker is not on `PATH`, run manual compose commands with your host's `docker-compose` binary or export `DOCKER_COMPOSE_BIN`.
 - Use only legally obtained media.

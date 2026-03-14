@@ -26,6 +26,7 @@ docker compose up -d
 5. Validate
 ```bash
 ./scripts/doctor.sh
+./scripts/security-check.sh
 docker compose ps
 ```
 
