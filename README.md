@@ -71,6 +71,7 @@ Optional values:
 - `JELLYSEERR_PORT` (default `5055`)
 - `DNS` (default `1.1.1.1`)
 - `SERVER_COUNTRIES` (default `Sweden`)
+- `NGINX_ALLOWED_CIDRS` (default loopback + RFC1918/private ranges)
 - `HOMEPAGE_ALLOWED_HOSTS` (default `*` for local-only setups)
 
 ## Common Commands
@@ -118,7 +119,7 @@ Preflight checks:
 
 - This project is HTTP-only for local self-hosting.
 - qBittorrent is intentionally routed through Gluetun VPN.
-- nginx routes are intentionally LAN-only; do not forward `NGINX_PORT` publicly.
+- nginx routes are intentionally LAN-only; tune them with `NGINX_ALLOWED_CIDRS` and do not forward `NGINX_PORT` publicly.
 - Jellyseerr stays direct on `JELLYSEERR_PORT`; if you keep that port, do not forward it publicly.
 - If Docker is not on `PATH`, run manual compose commands with your host's `docker-compose` binary or export `DOCKER_COMPOSE_BIN`.
 - Use only legally obtained media.

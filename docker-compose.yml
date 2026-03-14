@@ -193,6 +193,8 @@ services:
     restart: unless-stopped
     networks:
       - media
+    environment:
+      NGINX_ALLOWED_CIDRS: ${NGINX_ALLOWED_CIDRS:-127.0.0.1/32,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,fc00::/7,fe80::/10}
     healthcheck:
       test: ["CMD-SHELL", "nginx -t"]
       interval: 30s
@@ -202,4 +204,5 @@ services:
       - ${NGINX_PORT:-8090}:80
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/entrypoint/40-render-lan-allowlist.sh:/docker-entrypoint.d/40-render-lan-allowlist.sh:ro
       - ./nginx/logs:/var/log/nginx
