@@ -63,7 +63,6 @@ Back up `COMMON_PATH` regularly:
 - `Radarr/Config`
 - `Prowlarr/Config`
 - `Qbittorrent/Config`
-- `Portainer/Data`
 
 Example tar backup:
 ```bash

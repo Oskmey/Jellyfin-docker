@@ -274,6 +274,5 @@ expect_route_ok "/radarr/"
 expect_route_ok "/prowlarr/"
 expect_route_ok "/bazarr/"
 expect_route_ok "/homepage/"
-expect_route_absent "/portainer/"
 
 log_info "Security checks passed."

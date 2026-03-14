@@ -77,11 +77,3 @@ Verify proxy routes locally:
 ```bash
 ./scripts/security-check.sh
 ```
-
-## Portainer does not open through nginx
-
-Cause:
-- Portainer is intentionally not proxied by nginx
-
-Fix:
-- access it only through a separate admin-only path you intentionally expose, or keep it inaccessible from the LAN edge

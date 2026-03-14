@@ -11,8 +11,6 @@ NO_COLOR=0
 CURRENT_STEP="startup"
 DIR_CREATED=0
 DIR_REUSED=0
-KEY_CREATED=0
-KEY_REUSED=0
 WARNINGS=0
 FAILURES=0
 DOCKER_BIN="${DOCKER_BIN:-}"
@@ -333,36 +331,11 @@ ensure_directory() {
   log_ok "Created folder: ${dir}"
 }
 
-ensure_portainer_key() {
-  local key_file="$1"
-
-  if [[ -f "${key_file}" ]]; then
-    KEY_REUSED=$((KEY_REUSED + 1))
-    log_skip "Reused existing Portainer key: ${key_file}"
-    return
-  fi
-
-  if [[ -e "${key_file}" ]]; then
-    die "Portainer key path exists but is not a regular file: ${key_file}"
-  fi
-
-  (
-    umask 177
-    head -c 32 /dev/urandom | base64 > "${key_file}"
-  ) || die "Failed to generate Portainer key: ${key_file}"
-
-  chmod 600 "${key_file}" || die "Failed to apply permissions to Portainer key: ${key_file}"
-  KEY_CREATED=$((KEY_CREATED + 1))
-  log_ok "Created Portainer key: ${key_file}"
-}
-
 print_final_summary() {
   printf "\n"
   printf "%b\n" "${C_BOLD}Setup Summary${C_RESET}"
   printf "  %-24s %s\n" "Directories created" "${DIR_CREATED}"
   printf "  %-24s %s\n" "Directories reused" "${DIR_REUSED}"
-  printf "  %-24s %s\n" "Portainer keys created" "${KEY_CREATED}"
-  printf "  %-24s %s\n" "Portainer keys reused" "${KEY_REUSED}"
   printf "  %-24s %s\n" "Warnings" "${WARNINGS}"
   printf "  %-24s %s\n" "Failures" "${FAILURES}"
 }
@@ -387,7 +360,6 @@ create_directories() {
     "${base_path}/Jellyseerr/Config"
     "${base_path}/Bazarr/Config"
     "${base_path}/Homepage/Config"
-    "${base_path}/Portainer/Data"
   )
 
   log_info "COMMON_PATH resolved to: ${base_path}"
@@ -398,9 +370,6 @@ create_directories() {
     ensure_directory "${dir}"
   done
   log_ok "Folder checks complete (${#dirs[@]} targets)."
-
-  local key_file="${base_path}/Portainer/Data/portainer.key"
-  ensure_portainer_key "${key_file}"
 }
 
 run_preflight() {

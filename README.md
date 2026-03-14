@@ -8,7 +8,7 @@ It includes:
 - Library automation: Sonarr, Radarr, Prowlarr, Bazarr
 - Dashboard: Homepage
 - Downloader behind VPN: qBittorrent + Gluetun
-- Admin tools: Portainer and FlareSolverr
+- Anti-bot helper: FlareSolverr
 - Local entrypoint: nginx reverse proxy (Jellyseerr is direct on its own port)
 
 ## Goals

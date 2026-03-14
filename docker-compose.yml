@@ -176,17 +176,6 @@ services:
       - ${COMMON_PATH:?Set COMMON_PATH in .env}/Homepage/Config:/app/config
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
-  portainer:
-    image: portainer/portainer-ce:latest
-    container_name: portainer
-    restart: unless-stopped
-    networks:
-      - media
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Portainer/Data:/data
-      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Portainer/Data/portainer.key:/data/portainer.key
-
   nginx-proxy:
     image: nginx:1.27.5
     container_name: nginx-proxy
