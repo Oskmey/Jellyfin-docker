@@ -112,7 +112,7 @@ services:
       - ${COMMON_PATH:?Set COMMON_PATH in .env}/Radarr/movies:/data/movies
 
   jellyfin:
-    image: jellyfin/jellyfin:10.10.7
+    image: jellyfin/jellyfin:10.11.5
     container_name: jellyfin
     user: ${PUID:?Set PUID in .env}:${PGID:?Set PGID in .env}
     restart: unless-stopped
@@ -177,7 +177,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
   portainer:
-    image: portainer/portainer-ce:2.21.5
+    image: portainer/portainer-ce:latest
     container_name: portainer
     restart: unless-stopped
     networks:
