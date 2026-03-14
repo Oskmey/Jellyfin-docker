@@ -6,7 +6,6 @@ It includes:
 - Streaming: Jellyfin
 - Requests: Jellyseerr
 - Library automation: Sonarr, Radarr, Prowlarr, Bazarr
-- Post-download extraction: Unpackerr
 - Dashboard: Homepage
 - Downloader behind VPN: qBittorrent + Gluetun
 - Admin tools: Portainer and FlareSolverr
@@ -25,6 +24,7 @@ It includes:
 - Linux host with Docker Engine and Docker Compose (`docker compose` or `docker-compose`)
 - Mullvad WireGuard details
 - A path with enough storage for your media
+- If Docker is not on `PATH`, set `DOCKER_BIN` and/or `DOCKER_COMPOSE_BIN` before running the helper scripts.
 
 2. Run interactive setup
 ```bash
@@ -73,8 +73,6 @@ Optional values:
 - `DNS` (default `1.1.1.1`)
 - `SERVER_COUNTRIES` (default `Sweden`)
 - `HOMEPAGE_ALLOWED_HOSTS` (default `*` for local-only setups)
-- `UNPACKERR_SONARR_API_KEY` (set after Sonarr is configured)
-- `UNPACKERR_RADARR_API_KEY` (set after Radarr is configured)
 
 ## Common Commands
 
@@ -119,4 +117,5 @@ Preflight checks:
 
 - This project is HTTP-only for local self-hosting.
 - qBittorrent is intentionally routed through Gluetun VPN.
+- If Docker is not on `PATH`, run manual compose commands with your host's `docker-compose` binary or export `DOCKER_COMPOSE_BIN`.
 - Use only legally obtained media.

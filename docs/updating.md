@@ -2,6 +2,8 @@
 
 ## Standard update workflow
 
+If Docker is not on `PATH`, replace `docker compose` below with your host's compose binary.
+
 1. Pull latest repo changes
 ```bash
 git pull

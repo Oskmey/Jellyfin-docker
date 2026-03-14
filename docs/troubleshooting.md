@@ -1,5 +1,7 @@
 # Troubleshooting
 
+If Docker is not on `PATH`, replace `docker compose` below with your host's compose binary.
+
 ## docker compose config fails with missing variable
 
 Cause:

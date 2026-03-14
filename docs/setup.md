@@ -6,6 +6,7 @@
 - Docker Compose (`docker compose` plugin or `docker-compose` binary)
 - User permissions to run Docker
 - Mullvad WireGuard details
+- If Docker is not on `PATH`, set `DOCKER_BIN` and/or `DOCKER_COMPOSE_BIN` before running the helper scripts.
 
 ## Interactive setup (recommended)
 
@@ -16,10 +17,9 @@
 What it does:
 - prompts for required settings
 - writes `.env`
-- allows Unpackerr API keys to be empty during first setup
 - creates missing media/config directories under `COMMON_PATH` and reuses existing folders safely
 - creates `Portainer/Data/portainer.key` if missing
-- runs compose preflight validation (auto-detects `docker compose` or `docker-compose`)
+- runs compose preflight validation (auto-detects `docker compose` or `docker-compose`, with override support)
 
 ## Non-interactive setup
 
@@ -37,6 +37,11 @@ Requirements:
 
 ```bash
 docker compose up -d
+```
+
+If Docker is not on `PATH`, run your host's compose binary directly:
+```bash
+/path/to/docker-compose up -d
 ```
 
 ## Verify
