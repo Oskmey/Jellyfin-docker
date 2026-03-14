@@ -138,6 +138,9 @@ services:
     restart: unless-stopped
     networks:
       - media
+    dns:
+      - 1.1.1.1
+      - 1.0.0.1
     environment:
       LOG_LEVEL: info
       LOG_HTML: "false"
