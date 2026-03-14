@@ -54,7 +54,31 @@ resolve_path() {
 
 copy_template() {
   local file_name="$1"
-  install -m 0644 "${TEMPLATE_DIR}/${file_name}" "${TARGET_DIR}/${file_name}"
+  local source_file="${TEMPLATE_DIR}/${file_name}"
+  local target_file="${TARGET_DIR}/${file_name}"
+  local temp_file
+
+  temp_file="$(mktemp "${target_file}.tmp.XXXXXX")"
+
+  if [[ -z "${temp_file}" ]]; then
+    fail "Failed to create temp file for ${target_file}."
+  fi
+
+  if ! cp "${source_file}" "${temp_file}"; then
+    rm -f "${temp_file}"
+    fail "Failed to copy ${source_file} to ${target_file}."
+  fi
+
+  if ! chmod 0644 "${temp_file}"; then
+    rm -f "${temp_file}"
+    fail "Failed to set permissions on ${target_file}."
+  fi
+
+  if ! mv "${temp_file}" "${target_file}"; then
+    rm -f "${temp_file}"
+    fail "Failed to replace ${target_file}."
+  fi
+
   echo "Synced ${file_name}"
 }
 
