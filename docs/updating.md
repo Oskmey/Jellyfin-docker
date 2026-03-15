@@ -14,9 +14,9 @@ git pull
 ./scripts/sync-homepage-config.sh
 ```
 
-3. Review pinned image tags in `docker-compose.yml`
-- update only the services you want to upgrade
-- read release notes before major version jumps
+3. Review image tags in `docker-compose.yml`
+- this repository currently tracks `:latest` tags, so pulls may update multiple services at once
+- read release notes before major version jumps or before restarting services you depend on
 
 4. Pull images
 ```bash

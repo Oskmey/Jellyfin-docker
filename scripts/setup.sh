@@ -120,6 +120,18 @@ mask_value() {
   printf '%s****%s' "${value:0:4}" "${value: -4}"
 }
 
+ensure_env_file_permissions() {
+  local env_path="$1"
+
+  [[ -f "${env_path}" ]] || return 0
+
+  if chmod 600 "${env_path}" 2>/dev/null; then
+    return 0
+  fi
+
+  log_warn "Failed to restrict permissions on ${env_path}; secure it manually."
+}
+
 resolve_path() {
   local value="$1"
   if [[ "${value}" = /* ]]; then
@@ -200,6 +212,7 @@ source_env_file() {
 
   [[ -f "${env_path}" ]] || die "Missing env file: ${env_path}"
   normalize_env_file_line_endings "${env_path}"
+  ensure_env_file_permissions "${env_path}"
 
   set -a
   # shellcheck disable=SC1090
@@ -243,6 +256,23 @@ prompt_required() {
   printf '%s' "${value}"
 }
 
+validate_port() {
+  local key="$1"
+  local value="${!key:-}"
+
+  [[ -n "${value}" ]] || return 0
+  [[ "${value}" =~ ^[0-9]+$ ]] || die "${key} must be a numeric port: ${value}"
+  (( value >= 1 && value <= 65535 )) || die "${key} must be between 1 and 65535: ${value}"
+}
+
+validate_http_url() {
+  local key="$1"
+  local value="${!key:-}"
+
+  [[ -n "${value}" ]] || return 0
+  [[ "${value}" =~ ^https?://[^[:space:]]+$ ]] || die "${key} must start with http:// or https:// and contain no spaces: ${value}"
+}
+
 validate_required_env() {
   local missing=0
   local required=(
@@ -267,6 +297,10 @@ validate_required_env() {
   if [[ "${missing}" -ne 0 ]]; then
     exit 1
   fi
+
+  validate_port "NGINX_PORT"
+  validate_port "JELLYSEERR_PORT"
+  validate_http_url "JELLYSEERR_EXTERNAL_URL"
 }
 
 load_env_file() {
@@ -281,9 +315,12 @@ TZ=${TZ}
 PUID=${PUID}
 PGID=${PGID}
 NGINX_PORT=${NGINX_PORT}
+NGINX_BIND_IP=${NGINX_BIND_IP}
 JELLYSEERR_PORT=${JELLYSEERR_PORT}
+JELLYSEERR_BIND_IP=${JELLYSEERR_BIND_IP}
 JELLYSEERR_EXTERNAL_URL=${JELLYSEERR_EXTERNAL_URL}
 DNS=${DNS}
+DNS_SECONDARY=${DNS_SECONDARY}
 SERVER_COUNTRIES=${SERVER_COUNTRIES}
 WIREGUARD_ADDRESSES=${WIREGUARD_ADDRESSES}
 WIREGUARD_PRIVATE_KEY=${WIREGUARD_PRIVATE_KEY}
@@ -292,6 +329,7 @@ WIREGUARD_ENDPOINT=${WIREGUARD_ENDPOINT}
 WIREGUARD_ALLOWED_IPS=${WIREGUARD_ALLOWED_IPS}
 HOMEPAGE_ALLOWED_HOSTS=${HOMEPAGE_ALLOWED_HOSTS}
 ENVEOF
+  ensure_env_file_permissions "${ENV_FILE}"
   log_ok "Wrote ${ENV_FILE}"
 }
 
@@ -303,9 +341,12 @@ print_summary() {
   printf "  %-24s %s\n" "TZ" "${TZ}"
   printf "  %-24s %s\n" "PUID/PGID" "${PUID}/${PGID}"
   printf "  %-24s %s\n" "NGINX_PORT" "${NGINX_PORT}"
+  printf "  %-24s %s\n" "NGINX_BIND_IP" "${NGINX_BIND_IP}"
   printf "  %-24s %s\n" "JELLYSEERR_PORT" "${JELLYSEERR_PORT}"
+  printf "  %-24s %s\n" "JELLYSEERR_BIND_IP" "${JELLYSEERR_BIND_IP}"
   printf "  %-24s %s\n" "JELLYSEERR_EXTERNAL_URL" "${JELLYSEERR_EXTERNAL_URL}"
   printf "  %-24s %s\n" "DNS" "${DNS}"
+  printf "  %-24s %s\n" "DNS_SECONDARY" "${DNS_SECONDARY}"
   printf "  %-24s %s\n" "SERVER_COUNTRIES" "${SERVER_COUNTRIES}"
   printf "  %-24s %s\n" "HOMEPAGE_ALLOWED_HOSTS" "${HOMEPAGE_ALLOWED_HOSTS}"
   printf "  %-24s %s\n" "WIREGUARD_ADDRESSES" "$(mask_value "${WIREGUARD_ADDRESSES}")"
@@ -404,8 +445,11 @@ interactive_collect() {
   local default_puid="${PUID:-$(id -u)}"
   local default_pgid="${PGID:-$(id -g)}"
   local default_nginx_port="${NGINX_PORT:-8090}"
+  local default_nginx_bind_ip="${NGINX_BIND_IP:-0.0.0.0}"
   local default_jellyseerr_port="${JELLYSEERR_PORT:-5055}"
+  local default_jellyseerr_bind_ip="${JELLYSEERR_BIND_IP:-0.0.0.0}"
   local default_dns="${DNS:-1.1.1.1}"
+  local default_dns_secondary="${DNS_SECONDARY:-1.0.0.1}"
   local default_server_countries="${SERVER_COUNTRIES:-Sweden}"
   local default_homepage_allowed_hosts="${HOMEPAGE_ALLOWED_HOSTS:-*}"
   local default_allowed_ips="${WIREGUARD_ALLOWED_IPS:-0.0.0.0/0,::/0}"
@@ -418,10 +462,13 @@ interactive_collect() {
   PUID="$(prompt_default "PUID" "${default_puid}")"
   PGID="$(prompt_default "PGID" "${default_pgid}")"
   NGINX_PORT="$(prompt_default "NGINX_PORT" "${default_nginx_port}")"
+  NGINX_BIND_IP="$(prompt_default "NGINX_BIND_IP" "${default_nginx_bind_ip}")"
   JELLYSEERR_PORT="$(prompt_default "JELLYSEERR_PORT" "${default_jellyseerr_port}")"
+  JELLYSEERR_BIND_IP="$(prompt_default "JELLYSEERR_BIND_IP" "${default_jellyseerr_bind_ip}")"
   jellyseerr_external_url_default="${JELLYSEERR_EXTERNAL_URL:-http://${default_host}:${JELLYSEERR_PORT}}"
   JELLYSEERR_EXTERNAL_URL="$(prompt_default "JELLYSEERR_EXTERNAL_URL" "${jellyseerr_external_url_default}")"
   DNS="$(prompt_default "DNS" "${default_dns}")"
+  DNS_SECONDARY="$(prompt_default "DNS_SECONDARY" "${default_dns_secondary}")"
   SERVER_COUNTRIES="$(prompt_default "SERVER_COUNTRIES" "${default_server_countries}")"
   HOMEPAGE_ALLOWED_HOSTS="$(prompt_default "HOMEPAGE_ALLOWED_HOSTS" "${default_homepage_allowed_hosts}")"
 

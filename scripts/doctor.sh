@@ -29,6 +29,10 @@ fail() {
   exit 1
 }
 
+warn() {
+  echo "WARN: $*" >&2
+}
+
 resolve_docker_bin() {
   if [[ -n "${DOCKER_BIN:-}" ]]; then
     [[ -x "${DOCKER_BIN}" ]] || fail "DOCKER_BIN is not executable: ${DOCKER_BIN}"
@@ -95,6 +99,18 @@ normalize_env_file_line_endings() {
   fi
 }
 
+ensure_env_file_permissions() {
+  local env_path="$1"
+
+  [[ -f "${env_path}" ]] || return 0
+
+  if chmod 600 "${env_path}" 2>/dev/null; then
+    return 0
+  fi
+
+  warn "Failed to restrict permissions on ${env_path}; secure it manually."
+}
+
 resolve_path() {
   local path_value="$1"
   if [[ "${path_value}" = /* ]]; then
@@ -102,6 +118,23 @@ resolve_path() {
   else
     printf '%s' "${REPO_ROOT}/${path_value}"
   fi
+}
+
+validate_port() {
+  local key="$1"
+  local value="${!key:-}"
+
+  [[ -n "${value}" ]] || return 0
+  [[ "${value}" =~ ^[0-9]+$ ]] || fail "${key} must be a numeric port: ${value}"
+  (( value >= 1 && value <= 65535 )) || fail "${key} must be between 1 and 65535: ${value}"
+}
+
+validate_http_url() {
+  local key="$1"
+  local value="${!key:-}"
+
+  [[ -n "${value}" ]] || return 0
+  [[ "${value}" =~ ^https?://[^[:space:]]+$ ]] || fail "${key} must start with http:// or https:// and contain no spaces: ${value}"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -136,6 +169,7 @@ if [[ ! -f "${ENV_FILE}" ]]; then
 fi
 
 normalize_env_file_line_endings "${ENV_FILE}"
+ensure_env_file_permissions "${ENV_FILE}"
 
 set -a
 # shellcheck disable=SC1090
@@ -165,6 +199,10 @@ done
 if [[ "${missing}" -ne 0 ]]; then
   exit 1
 fi
+
+validate_port "NGINX_PORT"
+validate_port "JELLYSEERR_PORT"
+validate_http_url "JELLYSEERR_EXTERNAL_URL"
 
 common_path_abs="$(resolve_path "${COMMON_PATH}")"
 if [[ -e "${common_path_abs}" ]]; then

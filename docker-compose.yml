@@ -9,6 +9,10 @@ x-linuxserver-env: &linuxserver_env
   PGID: ${PGID:?Set PGID in .env}
   TZ: ${TZ:?Set TZ in .env}
 
+x-service-dns: &service_dns
+  - ${DNS:-1.1.1.1}
+  - ${DNS_SECONDARY:-1.0.0.1}
+
 services:
   gluetun:
     image: qmcgaw/gluetun:latest
@@ -89,9 +93,7 @@ services:
     restart: unless-stopped
     networks:
       - media
-    dns:
-      - 1.1.1.1
-      - 1.0.0.1
+    dns: *service_dns
     environment:
       <<: *linuxserver_env
       URL_BASE: /prowlarr
@@ -138,9 +140,7 @@ services:
     restart: unless-stopped
     networks:
       - media
-    dns:
-      - 1.1.1.1
-      - 1.0.0.1
+    dns: *service_dns
     environment:
       LOG_LEVEL: info
       LOG_HTML: "false"
@@ -154,7 +154,7 @@ services:
     networks:
       - media
     ports:
-      - "${JELLYSEERR_PORT:-5055}:5055"
+      - "${JELLYSEERR_BIND_IP:-0.0.0.0}:${JELLYSEERR_PORT:-5055}:5055"
     depends_on:
       jellyfin:
         condition: service_started
@@ -195,7 +195,7 @@ services:
       timeout: 10s
       retries: 3
     ports:
-      - ${NGINX_PORT:-8090}:80
+      - ${NGINX_BIND_IP:-0.0.0.0}:${NGINX_PORT:-8090}:80
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ./nginx/logs:/var/log/nginx

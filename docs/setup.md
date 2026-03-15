@@ -43,6 +43,7 @@ The repository now ships Homepage config templates in `homepage/`. Sync them int
 
 The sync target is `${COMMON_PATH}/Homepage/Config`.
 Set `JELLYSEERR_EXTERNAL_URL` in `.env` to the browser-facing Jellyseerr URL if your clients do not access the stack through `localhost`.
+Homepage also mounts the Docker socket read-only for container-aware widgets, so treat that container as more sensitive than the rest of the dashboard stack.
 
 ## Start stack
 
@@ -65,5 +66,5 @@ curl -fsS "http://localhost:${NGINX_PORT:-8090}/health"
 
 Notes:
 - qBittorrent is the only service intentionally routed through Gluetun/Mullvad.
-- nginx is intended for LAN use; keep `NGINX_PORT` behind your router/NAS firewall.
-- Jellyseerr remains direct on `JELLYSEERR_PORT` and is not protected by nginx access rules.
+- nginx is intended for LAN use; keep `NGINX_PORT` behind your router/NAS firewall and set `NGINX_BIND_IP` if you want to bind only loopback or one LAN IP.
+- Jellyseerr remains direct on `JELLYSEERR_PORT`, is not protected by nginx access rules, and can be constrained with `JELLYSEERR_BIND_IP`.
