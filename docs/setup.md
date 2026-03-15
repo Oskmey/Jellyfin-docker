@@ -66,5 +66,5 @@ curl -fsS "http://localhost:${NGINX_PORT:-8090}/health"
 
 Notes:
 - qBittorrent is the only service intentionally routed through Gluetun/Mullvad.
-- nginx is intended for LAN use; keep `NGINX_PORT` behind your router/NAS firewall and set `NGINX_BIND_IP` if you want to bind only loopback or one LAN IP.
-- Jellyseerr remains direct on `JELLYSEERR_PORT`, is not protected by nginx access rules, and can be constrained with `JELLYSEERR_BIND_IP`.
+- nginx is intended for LAN use; keep `NGINX_PORT` behind your router/NAS firewall.
+- Jellyseerr remains direct on `JELLYSEERR_PORT` and is not protected by nginx access rules.

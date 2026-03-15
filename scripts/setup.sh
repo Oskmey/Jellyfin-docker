@@ -315,19 +315,14 @@ TZ=${TZ}
 PUID=${PUID}
 PGID=${PGID}
 NGINX_PORT=${NGINX_PORT}
-NGINX_BIND_IP=${NGINX_BIND_IP}
 JELLYSEERR_PORT=${JELLYSEERR_PORT}
-JELLYSEERR_BIND_IP=${JELLYSEERR_BIND_IP}
 JELLYSEERR_EXTERNAL_URL=${JELLYSEERR_EXTERNAL_URL}
-DNS=${DNS}
-DNS_SECONDARY=${DNS_SECONDARY}
 SERVER_COUNTRIES=${SERVER_COUNTRIES}
 WIREGUARD_ADDRESSES=${WIREGUARD_ADDRESSES}
 WIREGUARD_PRIVATE_KEY=${WIREGUARD_PRIVATE_KEY}
 WIREGUARD_PUBLIC_KEY=${WIREGUARD_PUBLIC_KEY}
 WIREGUARD_ENDPOINT=${WIREGUARD_ENDPOINT}
 WIREGUARD_ALLOWED_IPS=${WIREGUARD_ALLOWED_IPS}
-HOMEPAGE_ALLOWED_HOSTS=${HOMEPAGE_ALLOWED_HOSTS}
 ENVEOF
   ensure_env_file_permissions "${ENV_FILE}"
   log_ok "Wrote ${ENV_FILE}"
@@ -341,14 +336,9 @@ print_summary() {
   printf "  %-24s %s\n" "TZ" "${TZ}"
   printf "  %-24s %s\n" "PUID/PGID" "${PUID}/${PGID}"
   printf "  %-24s %s\n" "NGINX_PORT" "${NGINX_PORT}"
-  printf "  %-24s %s\n" "NGINX_BIND_IP" "${NGINX_BIND_IP}"
   printf "  %-24s %s\n" "JELLYSEERR_PORT" "${JELLYSEERR_PORT}"
-  printf "  %-24s %s\n" "JELLYSEERR_BIND_IP" "${JELLYSEERR_BIND_IP}"
   printf "  %-24s %s\n" "JELLYSEERR_EXTERNAL_URL" "${JELLYSEERR_EXTERNAL_URL}"
-  printf "  %-24s %s\n" "DNS" "${DNS}"
-  printf "  %-24s %s\n" "DNS_SECONDARY" "${DNS_SECONDARY}"
   printf "  %-24s %s\n" "SERVER_COUNTRIES" "${SERVER_COUNTRIES}"
-  printf "  %-24s %s\n" "HOMEPAGE_ALLOWED_HOSTS" "${HOMEPAGE_ALLOWED_HOSTS}"
   printf "  %-24s %s\n" "WIREGUARD_ADDRESSES" "$(mask_value "${WIREGUARD_ADDRESSES}")"
   printf "  %-24s %s\n" "WIREGUARD_PRIVATE_KEY" "$(mask_value "${WIREGUARD_PRIVATE_KEY}")"
   printf "  %-24s %s\n" "WIREGUARD_PUBLIC_KEY" "$(mask_value "${WIREGUARD_PUBLIC_KEY}")"
@@ -445,13 +435,8 @@ interactive_collect() {
   local default_puid="${PUID:-$(id -u)}"
   local default_pgid="${PGID:-$(id -g)}"
   local default_nginx_port="${NGINX_PORT:-8090}"
-  local default_nginx_bind_ip="${NGINX_BIND_IP:-0.0.0.0}"
   local default_jellyseerr_port="${JELLYSEERR_PORT:-5055}"
-  local default_jellyseerr_bind_ip="${JELLYSEERR_BIND_IP:-0.0.0.0}"
-  local default_dns="${DNS:-1.1.1.1}"
-  local default_dns_secondary="${DNS_SECONDARY:-1.0.0.1}"
   local default_server_countries="${SERVER_COUNTRIES:-Sweden}"
-  local default_homepage_allowed_hosts="${HOMEPAGE_ALLOWED_HOSTS:-*}"
   local default_allowed_ips="${WIREGUARD_ALLOWED_IPS:-0.0.0.0/0,::/0}"
   local jellyseerr_external_url_default=""
 
@@ -462,15 +447,10 @@ interactive_collect() {
   PUID="$(prompt_default "PUID" "${default_puid}")"
   PGID="$(prompt_default "PGID" "${default_pgid}")"
   NGINX_PORT="$(prompt_default "NGINX_PORT" "${default_nginx_port}")"
-  NGINX_BIND_IP="$(prompt_default "NGINX_BIND_IP" "${default_nginx_bind_ip}")"
   JELLYSEERR_PORT="$(prompt_default "JELLYSEERR_PORT" "${default_jellyseerr_port}")"
-  JELLYSEERR_BIND_IP="$(prompt_default "JELLYSEERR_BIND_IP" "${default_jellyseerr_bind_ip}")"
   jellyseerr_external_url_default="${JELLYSEERR_EXTERNAL_URL:-http://${default_host}:${JELLYSEERR_PORT}}"
   JELLYSEERR_EXTERNAL_URL="$(prompt_default "JELLYSEERR_EXTERNAL_URL" "${jellyseerr_external_url_default}")"
-  DNS="$(prompt_default "DNS" "${default_dns}")"
-  DNS_SECONDARY="$(prompt_default "DNS_SECONDARY" "${default_dns_secondary}")"
   SERVER_COUNTRIES="$(prompt_default "SERVER_COUNTRIES" "${default_server_countries}")"
-  HOMEPAGE_ALLOWED_HOSTS="$(prompt_default "HOMEPAGE_ALLOWED_HOSTS" "${default_homepage_allowed_hosts}")"
 
   printf "\n"
   printf "%b\n" "${C_BOLD}Required WireGuard Settings${C_RESET}"

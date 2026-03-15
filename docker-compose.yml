@@ -10,8 +10,8 @@ x-linuxserver-env: &linuxserver_env
   TZ: ${TZ:?Set TZ in .env}
 
 x-service-dns: &service_dns
-  - ${DNS:-1.1.1.1}
-  - ${DNS_SECONDARY:-1.0.0.1}
+  - 1.1.1.1
+  - 1.0.0.1
 
 services:
   gluetun:
@@ -32,7 +32,7 @@ services:
       WIREGUARD_ENDPOINT: ${WIREGUARD_ENDPOINT:?Set WIREGUARD_ENDPOINT in .env}
       WIREGUARD_ALLOWED_IPS: ${WIREGUARD_ALLOWED_IPS:?Set WIREGUARD_ALLOWED_IPS in .env}
       SERVER_COUNTRIES: ${SERVER_COUNTRIES:-Sweden}
-      DNS: ${DNS:-1.1.1.1}
+      DNS: 1.1.1.1
     healthcheck:
       test: ["CMD", "/gluetun-entrypoint", "healthcheck"]
       interval: 30s
@@ -154,7 +154,7 @@ services:
     networks:
       - media
     ports:
-      - "${JELLYSEERR_BIND_IP:-0.0.0.0}:${JELLYSEERR_PORT:-5055}:5055"
+      - "${JELLYSEERR_PORT:-5055}:5055"
     depends_on:
       jellyfin:
         condition: service_started
@@ -177,7 +177,7 @@ services:
     environment:
       PUID: ${PUID:?Set PUID in .env}
       PGID: ${PGID:?Set PGID in .env}
-      HOMEPAGE_ALLOWED_HOSTS: ${HOMEPAGE_ALLOWED_HOSTS:-*}
+      HOMEPAGE_ALLOWED_HOSTS: "*"
       HOMEPAGE_VAR_JELLYSEERR_URL: ${JELLYSEERR_EXTERNAL_URL:-http://localhost:5055}
     volumes:
       - ${COMMON_PATH:?Set COMMON_PATH in .env}/Homepage/Config:/app/config
@@ -195,7 +195,7 @@ services:
       timeout: 10s
       retries: 3
     ports:
-      - ${NGINX_BIND_IP:-0.0.0.0}:${NGINX_PORT:-8090}:80
+      - ${NGINX_PORT:-8090}:80
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ./nginx/logs:/var/log/nginx

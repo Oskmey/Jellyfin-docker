@@ -68,14 +68,9 @@ Required values:
 
 Optional values:
 - `NGINX_PORT` (default `8090`)
-- `NGINX_BIND_IP` (default `0.0.0.0`; set `127.0.0.1` or a specific LAN IP to limit nginx exposure)
 - `JELLYSEERR_PORT` (default `5055`)
-- `JELLYSEERR_BIND_IP` (default `0.0.0.0`; set `127.0.0.1` or a specific LAN IP to limit Jellyseerr exposure)
 - `JELLYSEERR_EXTERNAL_URL` (used by Homepage for the Jellyseerr card; set this to your browser-facing LAN URL)
-- `DNS` (default `1.1.1.1`)
-- `DNS_SECONDARY` (default `1.0.0.1`)
 - `SERVER_COUNTRIES` (default `Sweden`)
-- `HOMEPAGE_ALLOWED_HOSTS` (default `*` for local-only setups)
 
 ## Common Commands
 
@@ -130,7 +125,7 @@ Resync Homepage config:
 - This project is HTTP-only for local self-hosting.
 - qBittorrent is intentionally routed through Gluetun VPN.
 - Homepage mounts the Docker socket read-only so it can surface container-aware dashboard features; treat the Homepage container as more sensitive because of that access.
-- nginx is intended for LAN use; keep `NGINX_PORT` behind your router/NAS firewall, do not forward it publicly, and set `NGINX_BIND_IP` if you want to limit which host interface it listens on.
-- Jellyseerr stays direct on `JELLYSEERR_PORT`; if you keep that port, do not forward it publicly, and set `JELLYSEERR_BIND_IP` if you want to limit which host interface it listens on.
+- nginx is intended for LAN use; keep `NGINX_PORT` behind your router/NAS firewall and do not forward it publicly.
+- Jellyseerr stays direct on `JELLYSEERR_PORT`; if you keep that port, do not forward it publicly.
 - If Docker is not on `PATH`, run manual compose commands with your host's `docker-compose` binary or export `DOCKER_COMPOSE_BIN`.
 - Use only legally obtained media.
