@@ -1,1 +1,4 @@
-[]
+- resources:
+    label: System
+    cpu: true
+    memory: true
