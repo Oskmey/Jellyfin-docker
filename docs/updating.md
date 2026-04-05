@@ -35,6 +35,11 @@ docker compose up -d
 docker compose ps
 ```
 
+Validation notes:
+- `doctor.sh` and `security-check.sh` are read-only by default.
+- Use `--fix-env` only if you want either script to normalize `.env` line endings or tighten permissions when supported.
+- After `docker compose up -d`, give healthchecked services time to move to `healthy` before troubleshooting transient startup errors.
+
 ## Rollback
 
 If a service breaks after tag update:

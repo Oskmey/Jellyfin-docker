@@ -24,6 +24,10 @@ docker compose ps
 docker compose logs -f <service>
 ```
 
+Notes:
+- Immediately after startup, wait for healthchecks to settle before assuming a persistent proxy issue.
+- `docker compose ps` should show `healthy` for the services that nginx or Jellyseerr depend on.
+
 ## qBittorrent cannot connect or has no VPN tunnel
 
 Cause:
@@ -35,6 +39,10 @@ Fix:
 - run the security verification script:
 ```bash
 ./scripts/security-check.sh
+```
+- if the script warns about `.env` formatting or permissions and you want it repaired automatically:
+```bash
+./scripts/security-check.sh --fix-env
 ```
 - check Gluetun logs:
 ```bash

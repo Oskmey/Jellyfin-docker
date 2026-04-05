@@ -7,10 +7,11 @@ ENV_FILE="${REPO_ROOT}/.env"
 DOCKER_BIN="${DOCKER_BIN:-}"
 COMPOSE_CMD=()
 COMPOSE_CMD_DISPLAY=""
+FIX_ENV=0
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/doctor.sh [--env-file PATH]
+Usage: scripts/doctor.sh [--env-file PATH] [--fix-env]
 
 Checks:
   - docker and compose availability (`docker compose` or `docker-compose`)
@@ -74,35 +75,51 @@ run_compose() {
   "${COMPOSE_CMD[@]}" "$@"
 }
 
+env_file_has_crlf() {
+  local env_path="$1"
+  LC_ALL=C grep -q $'\r' "${env_path}"
+}
+
 normalize_env_file_line_endings() {
   local env_path="$1"
   local tmp_file
 
-  if LC_ALL=C grep -q $'\r' "${env_path}"; then
-    tmp_file="$(mktemp "${env_path}.tmp.XXXXXX")"
+  tmp_file="$(mktemp "${env_path}.tmp.XXXXXX")"
 
-    if [[ -z "${tmp_file}" ]]; then
-      fail "Failed to create temp file for ${env_path}."
-    fi
-
-    if ! tr -d '\r' < "${env_path}" > "${tmp_file}"; then
-      rm -f "${tmp_file}"
-      fail "Failed to normalize line endings in ${env_path}."
-    fi
-
-    if ! mv "${tmp_file}" "${env_path}"; then
-      rm -f "${tmp_file}"
-      fail "Failed to replace ${env_path} after line ending normalization."
-    fi
-
-    echo "WARN: Detected Windows line endings in ${env_path}; converted to Unix LF." >&2
+  if [[ -z "${tmp_file}" ]]; then
+    fail "Failed to create temp file for ${env_path}."
   fi
+
+  if ! tr -d '\r' < "${env_path}" > "${tmp_file}"; then
+    rm -f "${tmp_file}"
+    fail "Failed to normalize line endings in ${env_path}."
+  fi
+
+  if ! mv "${tmp_file}" "${env_path}"; then
+    rm -f "${tmp_file}"
+    fail "Failed to replace ${env_path} after line ending normalization."
+  fi
+
+  warn "Detected Windows line endings in ${env_path}; converted to Unix LF."
+}
+
+env_file_permissions_are_restricted() {
+  local env_path="$1"
+
+  [[ -f "${env_path}" ]] || return 0
+
+  if [[ "$(uname -s 2>/dev/null)" =~ ^(MINGW|MSYS|CYGWIN) ]]; then
+    return 0
+  fi
+
+  local mode
+  mode="$(stat -c '%a' "${env_path}" 2>/dev/null || true)"
+  [[ -n "${mode}" ]] || return 0
+  [[ "${mode}" == "600" ]]
 }
 
 ensure_env_file_permissions() {
   local env_path="$1"
-
-  [[ -f "${env_path}" ]] || return 0
 
   if chmod 600 "${env_path}" 2>/dev/null; then
     return 0
@@ -137,6 +154,28 @@ validate_http_url() {
   [[ "${value}" =~ ^https?://[^[:space:]]+$ ]] || fail "${key} must start with http:// or https:// and contain no spaces: ${value}"
 }
 
+prepare_env_file() {
+  local env_path="$1"
+
+  if env_file_has_crlf "${env_path}"; then
+    if [[ "${FIX_ENV}" -eq 1 ]]; then
+      normalize_env_file_line_endings "${env_path}"
+    else
+      warn "Detected Windows line endings in ${env_path}; rerun with --fix-env to convert to Unix LF."
+    fi
+  fi
+
+  if ! env_file_permissions_are_restricted "${env_path}"; then
+    if [[ "${FIX_ENV}" -eq 1 ]]; then
+      ensure_env_file_permissions "${env_path}"
+    else
+      warn "${env_path} permissions are broader than 600; rerun with --fix-env to tighten them when supported."
+    fi
+  fi
+
+  return 0
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --env-file)
@@ -145,6 +184,10 @@ while [[ $# -gt 0 ]]; do
       fi
       ENV_FILE="$2"
       shift 2
+      ;;
+    --fix-env)
+      FIX_ENV=1
+      shift
       ;;
     -h|--help)
       usage
@@ -168,8 +211,7 @@ if [[ ! -f "${ENV_FILE}" ]]; then
   fail "Missing env file: ${ENV_FILE}"
 fi
 
-normalize_env_file_line_endings "${ENV_FILE}"
-ensure_env_file_permissions "${ENV_FILE}"
+prepare_env_file "${ENV_FILE}"
 
 set -a
 # shellcheck disable=SC1090

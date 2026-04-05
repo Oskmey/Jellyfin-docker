@@ -41,6 +41,14 @@ The repository now ships Homepage config templates in `homepage/`. Sync them int
 ./scripts/sync-homepage-config.sh
 ```
 
+Useful safety options:
+
+```bash
+./scripts/sync-homepage-config.sh --dry-run
+./scripts/sync-homepage-config.sh --backup
+./scripts/sync-homepage-config.sh --skip-existing
+```
+
 The sync target is `${COMMON_PATH}/Homepage/Config`.
 Set `JELLYSEERR_EXTERNAL_URL` in `.env` to the browser-facing Jellyseerr URL if your clients do not access the stack through `localhost`.
 Homepage also mounts the Docker socket read-only for container-aware widgets, so treat that container as more sensitive than the rest of the dashboard stack.
@@ -64,7 +72,10 @@ If Docker is not on `PATH`, run your host's compose binary directly:
 curl -fsS "http://localhost:${NGINX_PORT:-8090}/health"
 ```
 
+Both check scripts are read-only by default. If you want them to normalize `.env` line endings or tighten `.env` permissions when supported, rerun them with `--fix-env`.
+
 Notes:
 - qBittorrent is the only service intentionally routed through Gluetun/Mullvad.
 - nginx is intended for LAN use; keep `NGINX_PORT` behind your router/NAS firewall.
 - Jellyseerr remains direct on `JELLYSEERR_PORT` and is not protected by nginx access rules.
+- The stack uses container healthchecks so dependent services wait for healthier upstreams during startup.

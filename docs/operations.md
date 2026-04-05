@@ -44,15 +44,35 @@ Run environment checks:
 ./scripts/security-check.sh
 ```
 
+If you need to repair `.env` formatting or permissions explicitly:
+```bash
+./scripts/doctor.sh --fix-env
+./scripts/security-check.sh --fix-env
+```
+
 Resync Homepage templates:
 ```bash
 ./scripts/sync-homepage-config.sh
+```
+
+Preview or protect Homepage syncs:
+```bash
+./scripts/sync-homepage-config.sh --dry-run
+./scripts/sync-homepage-config.sh --backup
+./scripts/sync-homepage-config.sh --skip-existing
 ```
 
 Proxy health endpoint:
 ```bash
 curl -fsS "http://localhost:${NGINX_PORT:-8090}/health"
 ```
+
+Check container health states after a restart or update:
+```bash
+docker compose ps
+```
+
+Look for `healthy` on services with healthchecks before treating the stack as ready.
 
 Security model:
 - qBittorrent is the only service routed through Gluetun/Mullvad.

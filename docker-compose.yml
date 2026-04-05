@@ -13,6 +13,12 @@ x-service-dns: &service_dns
   - 1.1.1.1
   - 1.0.0.1
 
+x-http-healthcheck: &http_healthcheck_defaults
+  interval: 30s
+  timeout: 10s
+  retries: 5
+  start_period: 30s
+
 services:
   gluetun:
     image: qmcgaw/gluetun:latest
@@ -53,6 +59,9 @@ services:
     environment:
       <<: *linuxserver_env
       WEBUI_PORT: 8080
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8080 || exit 1"]
+      <<: *http_healthcheck_defaults
     volumes:
       - ${COMMON_PATH:?Set COMMON_PATH in .env}/Qbittorrent/Config:/config
       - ${COMMON_PATH:?Set COMMON_PATH in .env}/Downloads:/data/downloads
@@ -66,6 +75,9 @@ services:
     environment:
       <<: *linuxserver_env
       URL_BASE: /sonarr
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8989/sonarr || exit 1"]
+      <<: *http_healthcheck_defaults
     volumes:
       - ${COMMON_PATH:?Set COMMON_PATH in .env}/Sonarr/Config:/config
       - ${COMMON_PATH:?Set COMMON_PATH in .env}/Sonarr/Backup:/data/Backup
@@ -81,6 +93,9 @@ services:
     environment:
       <<: *linuxserver_env
       URL_BASE: /radarr
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:7878/radarr || exit 1"]
+      <<: *http_healthcheck_defaults
     volumes:
       - ${COMMON_PATH:?Set COMMON_PATH in .env}/Radarr/Config:/config
       - ${COMMON_PATH:?Set COMMON_PATH in .env}/Radarr/Backup:/data/Backup
@@ -97,6 +112,9 @@ services:
     environment:
       <<: *linuxserver_env
       URL_BASE: /prowlarr
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:9696/prowlarr || exit 1"]
+      <<: *http_healthcheck_defaults
     volumes:
       - ${COMMON_PATH:?Set COMMON_PATH in .env}/Prowlarr/Config:/config
       - ${COMMON_PATH:?Set COMMON_PATH in .env}/Prowlarr/Backup:/data/Backup
@@ -111,6 +129,9 @@ services:
     environment:
       <<: *linuxserver_env
       URL_BASE: /bazarr
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:6767/bazarr || exit 1"]
+      <<: *http_healthcheck_defaults
     volumes:
       - ${COMMON_PATH:?Set COMMON_PATH in .env}/Bazarr/Config:/config
       - ${COMMON_PATH:?Set COMMON_PATH in .env}/Sonarr/tvshows:/data/tvshows
@@ -125,6 +146,9 @@ services:
       - media
     environment:
       TZ: ${TZ:?Set TZ in .env}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8096/health || wget -q --spider http://127.0.0.1:8096 || exit 1"]
+      <<: *http_healthcheck_defaults
     devices:
       - /dev/dri:/dev/dri
     volumes:
@@ -146,6 +170,9 @@ services:
       LOG_HTML: "false"
       CAPTCHA_SOLVER: none
       TZ: ${TZ:?Set TZ in .env}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8191 || exit 1"]
+      <<: *http_healthcheck_defaults
 
   jellyseerr:
     image: fallenbagel/jellyseerr:latest
@@ -157,14 +184,17 @@ services:
       - "${JELLYSEERR_PORT:-5055}:5055"
     depends_on:
       jellyfin:
-        condition: service_started
+        condition: service_healthy
       sonarr:
-        condition: service_started
+        condition: service_healthy
       radarr:
-        condition: service_started
+        condition: service_healthy
     environment:
       LOG_LEVEL: info
       TZ: ${TZ:?Set TZ in .env}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:5055/api/v1/status || wget -q --spider http://127.0.0.1:5055 || exit 1"]
+      <<: *http_healthcheck_defaults
     volumes:
       - ${COMMON_PATH:?Set COMMON_PATH in .env}/Jellyseerr/Config:/app/config
 
@@ -179,6 +209,9 @@ services:
       PGID: ${PGID:?Set PGID in .env}
       HOMEPAGE_ALLOWED_HOSTS: "*"
       HOMEPAGE_VAR_JELLYSEERR_URL: ${JELLYSEERR_EXTERNAL_URL:-http://localhost:5055}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3000 || exit 1"]
+      <<: *http_healthcheck_defaults
     volumes:
       - ${COMMON_PATH:?Set COMMON_PATH in .env}/Homepage/Config:/app/config
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -189,6 +222,21 @@ services:
     restart: unless-stopped
     networks:
       - media
+    depends_on:
+      jellyfin:
+        condition: service_healthy
+      sonarr:
+        condition: service_healthy
+      radarr:
+        condition: service_healthy
+      prowlarr:
+        condition: service_healthy
+      bazarr:
+        condition: service_healthy
+      qbittorrent:
+        condition: service_healthy
+      homepage:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "nginx -t"]
       interval: 30s

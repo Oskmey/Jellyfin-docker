@@ -95,9 +95,20 @@ Preflight checks:
 ./scripts/security-check.sh
 ```
 
+Optional env-file repair if you need the scripts to normalize `.env` line endings or tighten permissions:
+```bash
+./scripts/doctor.sh --fix-env
+./scripts/security-check.sh --fix-env
+```
+
 Resync Homepage config:
 ```bash
 ./scripts/sync-homepage-config.sh
+```
+
+Preview Homepage sync changes first:
+```bash
+./scripts/sync-homepage-config.sh --dry-run
 ```
 
 ## Documentation
@@ -115,8 +126,8 @@ Resync Homepage config:
 - `homepage/`: repo-managed Homepage dashboard templates
 - `scripts/setup.sh`: interactive setup + env generation
 - `scripts/sync-homepage-config.sh`: sync Homepage templates into `${COMMON_PATH}/Homepage/Config`
-- `scripts/doctor.sh`: environment and compose validation
-- `scripts/security-check.sh`: VPN and local routing verification
+- `scripts/doctor.sh`: read-only environment and compose validation by default (`--fix-env` is opt-in)
+- `scripts/security-check.sh`: read-only VPN and local routing verification by default (`--fix-env` is opt-in)
 - `nginx/conf.d/default.conf`: reverse proxy routes
 - `docs/`: onboarding, operations, and troubleshooting
 
@@ -124,6 +135,7 @@ Resync Homepage config:
 
 - This project is HTTP-only for local self-hosting.
 - qBittorrent is intentionally routed through Gluetun VPN.
+- Core services now include healthchecks to make restarts and cold starts more predictable.
 - Homepage mounts the Docker socket read-only so it can surface container-aware dashboard features; treat the Homepage container as more sensitive because of that access.
 - nginx is intended for LAN use; keep `NGINX_PORT` behind your router/NAS firewall and do not forward it publicly.
 - Jellyseerr stays direct on `JELLYSEERR_PORT`; if you keep that port, do not forward it publicly.

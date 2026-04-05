@@ -5,13 +5,21 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 ENV_FILE="${REPO_ROOT}/.env"
 TEMPLATE_DIR="${REPO_ROOT}/homepage"
+DRY_RUN=0
+BACKUP=0
+SKIP_EXISTING=0
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/sync-homepage-config.sh [--env-file PATH]
+Usage: scripts/sync-homepage-config.sh [--env-file PATH] [--dry-run] [--backup] [--skip-existing]
 
 Syncs the repo-managed Homepage config templates into
 ${COMMON_PATH}/Homepage/Config.
+
+Options:
+  --dry-run        Show planned actions without writing files.
+  --backup         Create .bak copies before overwriting existing files.
+  --skip-existing  Leave existing target files untouched.
 USAGE
 }
 
@@ -43,6 +51,10 @@ normalize_env_file_line_endings() {
   fi
 }
 
+log_action() {
+  echo "$*"
+}
+
 resolve_path() {
   local path_value="$1"
   if [[ "${path_value}" = /* ]]; then
@@ -57,6 +69,28 @@ copy_template() {
   local source_file="${TEMPLATE_DIR}/${file_name}"
   local target_file="${TARGET_DIR}/${file_name}"
   local temp_file
+
+  if [[ -f "${target_file}" && "${SKIP_EXISTING}" -eq 1 ]]; then
+    log_action "Skipped ${file_name} (target exists)"
+    return 0
+  fi
+
+  if [[ "${DRY_RUN}" -eq 1 ]]; then
+    if [[ -f "${target_file}" ]]; then
+      if [[ "${BACKUP}" -eq 1 ]]; then
+        log_action "Would back up ${target_file} to ${target_file}.bak"
+      fi
+      log_action "Would overwrite ${file_name}"
+    else
+      log_action "Would create ${file_name}"
+    fi
+    return 0
+  fi
+
+  if [[ -f "${target_file}" && "${BACKUP}" -eq 1 ]]; then
+    cp "${target_file}" "${target_file}.bak" || fail "Failed to back up ${target_file}."
+    log_action "Backed up ${file_name} to ${file_name}.bak"
+  fi
 
   temp_file="$(mktemp "${target_file}.tmp.XXXXXX")"
 
@@ -79,7 +113,7 @@ copy_template() {
     fail "Failed to replace ${target_file}."
   fi
 
-  echo "Synced ${file_name}"
+  log_action "Synced ${file_name}"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -90,6 +124,18 @@ while [[ $# -gt 0 ]]; do
       fi
       ENV_FILE="$2"
       shift 2
+      ;;
+    --dry-run)
+      DRY_RUN=1
+      shift
+      ;;
+    --backup)
+      BACKUP=1
+      shift
+      ;;
+    --skip-existing)
+      SKIP_EXISTING=1
+      shift
       ;;
     -h|--help)
       usage
@@ -118,11 +164,20 @@ set +a
 [[ -n "${COMMON_PATH:-}" ]] || fail "COMMON_PATH is missing in ${ENV_FILE}"
 
 TARGET_DIR="$(resolve_path "${COMMON_PATH}")/Homepage/Config"
-mkdir -p "${TARGET_DIR}"
+
+if [[ "${DRY_RUN}" -eq 1 ]]; then
+  log_action "Would ensure target directory exists: ${TARGET_DIR}"
+else
+  mkdir -p "${TARGET_DIR}"
+fi
 
 copy_template "services.yaml"
 copy_template "settings.yaml"
 copy_template "bookmarks.yaml"
 copy_template "widgets.yaml"
 
-echo "Homepage config synced to ${TARGET_DIR}"
+if [[ "${DRY_RUN}" -eq 1 ]]; then
+  log_action "Dry run complete for ${TARGET_DIR}"
+else
+  log_action "Homepage config synced to ${TARGET_DIR}"
+fi
