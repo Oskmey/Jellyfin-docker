@@ -32,11 +32,10 @@ jobs:
           config: .markdownlint.yml
           globs: '**/*.md'
 
-      - name: Set up shellcheck
-        uses: ludey/setup-shellcheck@v5
-
       - name: Lint shell scripts
-        run: shellcheck scripts/*.sh folder_setup.sh
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+          shellcheck scripts/*.sh folder_setup.sh
 
   compose:
     name: Validate compose
@@ -45,8 +44,21 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Validate docker-compose.yml
-        # Uses minimal .env.ci for required env var substitution
-        run: docker compose --env-file .env.ci -f docker-compose.yml config
+        env:
+          COMMON_PATH: ./data
+          TZ: UTC
+          PUID: 1000
+          PGID: 1000
+          NGINX_PORT: 8090
+          JELLYSEERR_PORT: 5055
+          JELLYSEERR_EXTERNAL_URL: http://localhost:5055
+          SERVER_COUNTRIES: Sweden
+          WIREGUARD_ADDRESSES: ""
+          WIREGUARD_PRIVATE_KEY: ""
+          WIREGUARD_PUBLIC_KEY: ""
+          WIREGUARD_ENDPOINT: ""
+          WIREGUARD_ALLOWED_IPS: 0.0.0.0/0
+        run: docker compose -f docker-compose.yml config
 
   security:
     name: Security checks
