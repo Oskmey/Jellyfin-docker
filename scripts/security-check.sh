@@ -247,15 +247,6 @@ expect_route_ok() {
   esac
 }
 
-expect_route_absent() {
-  local path="$1"
-  local status
-
-  status="$(http_status "http://127.0.0.1:${NGINX_PORT:-8090}${path}")"
-  [[ "${status}" == "404" ]] || fail "Route ${path} should be absent, but returned ${status}."
-  log_ok "Route ${path} is absent (${status})."
-}
-
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --env-file)

@@ -42,14 +42,14 @@ Validation notes:
 
 ## Rollback
 
-If a service breaks after tag update:
+If a service breaks after a `:latest` update:
 
-1. Revert the changed image tag in `docker-compose.yml`
-2. Pull the reverted tag
+1. Pin the affected service in `docker-compose.yml` to a known-good image version tag or digest.
+2. Pull the pinned image.
 ```bash
 docker compose pull <service>
 ```
-3. Restart that service
+3. Restart that service.
 ```bash
 docker compose up -d <service>
 ```

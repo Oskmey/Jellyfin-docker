@@ -10,7 +10,6 @@ BASH_FILES=(
   "scripts/doctor.sh"
   "scripts/security-check.sh"
   "scripts/sync-homepage-config.sh"
-  "folder_setup.sh"
 )
 
 YAML_FILES=(
