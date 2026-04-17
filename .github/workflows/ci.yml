@@ -3,83 +3,21 @@ name: CI
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - '*.md'
-      - 'LICENSE'
-      - '.claude/'
   pull_request:
     branches: [main]
-    paths-ignore:
-      - '*.md'
-      - 'LICENSE'
-      - '.claude/'
 
 jobs:
-  lint:
-    name: Lint
+  validate:
+    name: Validate Repo
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
-      - name: Lint YAML
-        uses: ibiqlik/action-yamllint@v3
-        with:
-          config_file: .yamllint.yml
-
-      - name: Lint Markdown
-        uses: DavidAnson/markdownlint-cli2-action@v19
-        with:
-          config: .markdownlint.yml
-          globs: '**/*.md'
-
-      - name: Lint shell scripts
+      - name: Install CI dependencies
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
-          shellcheck scripts/*.sh folder_setup.sh
+          sudo apt-get update
+          sudo apt-get install -y shellcheck yamllint
 
-  compose:
-    name: Validate compose
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Validate docker-compose.yml
-        env:
-          COMMON_PATH: ./data
-          TZ: UTC
-          PUID: 1000
-          PGID: 1000
-          NGINX_PORT: 8090
-          JELLYSEERR_PORT: 5055
-          JELLYSEERR_EXTERNAL_URL: http://localhost:5055
-          SERVER_COUNTRIES: Sweden
-          WIREGUARD_ADDRESSES: ""
-          WIREGUARD_PRIVATE_KEY: ""
-          WIREGUARD_PUBLIC_KEY: ""
-          WIREGUARD_ENDPOINT: ""
-          WIREGUARD_ALLOWED_IPS: 0.0.0.0/0
-        run: docker compose -f docker-compose.yml config
-
-  security:
-    name: Security checks
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Check for secrets in .env
-        run: |
-          # Ensure .env is gitignored and .env.example has no real values
-          if git ls-files --others --cached | grep -q '^\./\.env$'; then
-            echo "::error::Untracked .env file found. Add it to .gitignore."
-            exit 1
-          fi
-
-      - name: Check .env.example has no WireGuard keys
-        if: github.event_name == 'pull_request'
-        run: |
-          if grep -qP 'WIREGUARD_(PRIVATE_KEY|PUBLIC_KEY)\s*=\s*\S' .env.example; then
-            echo "::error::.env.example contains non-empty WireGuard keys"
-            exit 1
-          fi
+      - name: Run CI checks
+        run: bash scripts/ci.sh

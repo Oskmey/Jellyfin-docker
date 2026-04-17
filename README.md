@@ -95,6 +95,11 @@ Preflight checks:
 ./scripts/security-check.sh
 ```
 
+CI checks:
+```bash
+./scripts/ci.sh
+```
+
 Optional env-file repair if you need the scripts to normalize `.env` line endings or tighten permissions:
 ```bash
 ./scripts/doctor.sh --fix-env
