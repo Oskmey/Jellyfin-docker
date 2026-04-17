@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '*.md'
+      - 'LICENSE'
+      - '.claude/'
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - '*.md'
+      - 'LICENSE'
+      - '.claude/'
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint YAML
+        uses: ibiqlik/action-yamllint@v3
+        with:
+          config_file: .yamllint.yml
+
+      - name: Lint Markdown
+        uses: DavidAnson/markdownlint-cli2-action@v19
+        with:
+          config: .markdownlint.yml
+          globs: '**/*.md'
+
+      - name: Set up shellcheck
+        uses: ludey/setup-shellcheck@v5
+
+      - name: Lint shell scripts
+        run: shellcheck scripts/*.sh folder_setup.sh
+
+  compose:
+    name: Validate compose
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate docker-compose.yml
+        # Uses minimal .env.ci for required env var substitution
+        run: docker compose --env-file .env.ci -f docker-compose.yml config
+
+  security:
+    name: Security checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for secrets in .env
+        run: |
+          # Ensure .env is gitignored and .env.example has no real values
+          if git ls-files --others --cached | grep -q '^\./\.env$'; then
+            echo "::error::Untracked .env file found. Add it to .gitignore."
+            exit 1
+          fi
+
+      - name: Check .env.example has no WireGuard keys
+        if: github.event_name == 'pull_request'
+        run: |
+          if grep -qP 'WIREGUARD_(PRIVATE_KEY|PUBLIC_KEY)\s*=\s*\S' .env.example; then
+            echo "::error::.env.example contains non-empty WireGuard keys"
+            exit 1
+          fi

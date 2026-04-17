@@ -1,0 +1,12 @@
+.env
+.env.*
+data/
+nginx/logs/
+.git/
+.github/
+*.md
+LICENSE
+.claude/
+.vscode/
+*.swp
+.DS_Store
