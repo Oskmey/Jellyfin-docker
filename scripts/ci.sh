@@ -9,6 +9,7 @@ BASH_FILES=(
   "scripts/setup.sh"
   "scripts/doctor.sh"
   "scripts/security-check.sh"
+  "scripts/backup-configs.sh"
   "scripts/sync-homepage-config.sh"
 )
 

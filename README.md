@@ -17,6 +17,7 @@ It includes:
 - Easy to run and maintain long-term
 - Clear defaults with predictable behavior
 - Reliable local LAN deployment
+- Intel TerraMaster NAS readiness without risky host driver changes
 
 ## Quick Start
 
@@ -67,8 +68,11 @@ Required values:
 - `WIREGUARD_ALLOWED_IPS`
 
 Optional values:
+- `BIND_IP` (default `0.0.0.0`; use `127.0.0.1` for localhost-only testing)
 - `NGINX_PORT` (default `8090`)
 - `JELLYSEERR_PORT` (default `5055`)
+- `JELLYFIN_RENDER_GID` (default `109`; setup tries to detect the host `render` group)
+- `LOG_MAX_SIZE` / `LOG_MAX_FILE` (Docker JSON log rotation defaults)
 - `JELLYSEERR_EXTERNAL_URL` (used by Homepage for the Jellyseerr card; set this to your browser-facing LAN URL)
 - `SERVER_COUNTRIES` (default `Sweden`)
 
@@ -111,6 +115,11 @@ Resync Homepage config:
 ./scripts/sync-homepage-config.sh
 ```
 
+Back up app configs only:
+```bash
+./scripts/backup-configs.sh
+```
+
 Preview Homepage sync changes first:
 ```bash
 ./scripts/sync-homepage-config.sh --dry-run
@@ -133,6 +142,7 @@ Preview Homepage sync changes first:
 - `scripts/sync-homepage-config.sh`: sync Homepage templates into `${COMMON_PATH}/Homepage/Config`
 - `scripts/doctor.sh`: read-only environment and compose validation by default (`--fix-env` is opt-in)
 - `scripts/security-check.sh`: read-only VPN and local routing verification by default (`--fix-env` is opt-in)
+- `scripts/backup-configs.sh`: config-only backup archives under `${COMMON_PATH}/Backups`
 - `nginx/conf.d/default.conf`: reverse proxy routes
 - `docs/`: onboarding, operations, and troubleshooting
 
@@ -140,9 +150,12 @@ Preview Homepage sync changes first:
 
 - This project is HTTP-only for local self-hosting.
 - qBittorrent is intentionally routed through Gluetun VPN.
+- qBittorrent's WebUI password should be changed during first-run setup and should not be exposed publicly.
+- Jellyfin is prepared for Intel Quick Sync/VA-API by mounting `/dev/dri` and adding `JELLYFIN_RENDER_GID`; verify the device exists on TerraMaster before enabling hardware acceleration in Jellyfin.
 - Core services now include healthchecks to make restarts and cold starts more predictable.
+- Docker JSON logs are rotated by default to reduce slow NAS disk growth.
 - Homepage mounts the Docker socket read-only so it can surface container-aware dashboard features; treat the Homepage container as more sensitive because of that access.
-- nginx is intended for LAN use; keep `NGINX_PORT` behind your router/NAS firewall and do not forward it publicly.
+- nginx is intended for LAN use; keep `BIND_IP`/`NGINX_PORT` behind your router/NAS firewall and do not forward it publicly.
 - Jellyseerr stays direct on `JELLYSEERR_PORT`; if you keep that port, do not forward it publicly.
 - If Docker is not on `PATH`, run manual compose commands with your host's `docker-compose` binary or export `DOCKER_COMPOSE_BIN`.
 - Use only legally obtained media.

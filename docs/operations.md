@@ -36,6 +36,12 @@ Single service logs:
 docker compose logs -f sonarr
 ```
 
+Docker JSON logs are rotated by the stack defaults:
+- `LOG_MAX_SIZE=10m`
+- `LOG_MAX_FILE=3`
+
+nginx access logs use a sanitized format that records the path without query strings. This avoids storing sensitive playback or API query parameters in `nginx/logs/access.log`.
+
 ## Health and preflight
 
 Run environment checks:
@@ -81,7 +87,12 @@ Security model:
 
 ## Backup basics
 
-Back up `COMMON_PATH` regularly:
+Back up service configs before updates and on a regular schedule:
+```bash
+./scripts/backup-configs.sh
+```
+
+By default, archives are written to `${COMMON_PATH}/Backups` and include only app config folders:
 - `Jellyfin/Config`
 - `Jellyseerr/Config`
 - `Sonarr/Config`
@@ -90,7 +101,20 @@ Back up `COMMON_PATH` regularly:
 - `Qbittorrent/Config`
 - `Homepage/Config`
 
-Example tar backup:
+Media libraries and downloads are excluded. To write backups somewhere else:
 ```bash
-tar -czf media-stack-backup-$(date +%F).tar.gz "${COMMON_PATH}"
+./scripts/backup-configs.sh --output-dir /path/to/backups
 ```
+
+## Hardware acceleration checks
+
+On Intel TerraMaster systems, Jellyfin expects `/dev/dri/renderD128` and a matching `JELLYFIN_RENDER_GID`.
+
+Useful checks:
+```bash
+ls -l /dev/dri
+getent group render
+./scripts/doctor.sh
+```
+
+During a transcode, host tools such as `intel_gpu_top` can confirm whether the iGPU is active when available on your NAS.

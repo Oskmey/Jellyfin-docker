@@ -2,3 +2,7 @@
 
 # Shell scripts must stay LF for Linux hosts/NAS systems.
 *.sh text eol=lf
+
+# YAML is linted in CI and should stay LF across platforms.
+*.yml text eol=lf
+*.yaml text eol=lf

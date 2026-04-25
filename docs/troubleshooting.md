@@ -49,6 +49,20 @@ Fix:
 docker compose logs -f gluetun
 ```
 
+## qBittorrent WebUI login is unknown
+
+Cause:
+- recent qBittorrent versions generate a temporary first-run password
+- an existing config has a changed or forgotten WebUI password
+
+Fix:
+- check qBittorrent logs for the temporary password on first start:
+```bash
+docker compose logs qbittorrent
+```
+- after login, change the WebUI password immediately
+- keep the WebUI reachable only through the LAN nginx route
+
 ## Permission denied on media paths
 
 Cause:
@@ -57,6 +71,27 @@ Cause:
 Fix:
 - set `PUID` and `PGID` in `.env` to your Linux user/group IDs
 - ensure `COMMON_PATH` is writable by that user
+
+## Jellyfin hardware acceleration is unavailable
+
+Cause:
+- TerraMaster is not exposing the Intel render device
+- `JELLYFIN_RENDER_GID` does not match the host render group
+- Jellyfin playback settings are not using QSV or VA-API
+
+Fix:
+```bash
+ls -l /dev/dri
+getent group render
+./scripts/doctor.sh
+```
+
+Set `JELLYFIN_RENDER_GID` in `.env` to the host render group ID or the group ID shown for `/dev/dri/renderD128`, then recreate Jellyfin:
+```bash
+docker compose up -d jellyfin
+```
+
+Avoid kernel or driver changes as a first step on TOS 6/7; confirm the device, group, and Jellyfin settings first.
 
 ## Jellyfin does not see media
 

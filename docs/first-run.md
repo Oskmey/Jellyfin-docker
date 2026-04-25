@@ -7,10 +7,17 @@ Use this order for a clean first setup:
 - Add libraries:
   - TV: `/data/tvshows`
   - Movies: `/data/movies`
+- On Intel TerraMaster systems, enable hardware acceleration after the wizard:
+  - Jellyfin Dashboard -> Playback -> Transcoding
+  - Prefer Intel Quick Sync when available; use VA-API as the fallback
+  - VA-API device: `/dev/dri/renderD128`
+  - If transcoding fails, run `./scripts/doctor.sh` and verify `JELLYFIN_RENDER_GID`
 
 2. Configure qBittorrent
 - URL: `http://<host>:<NGINX_PORT>/qbittorrent/`
+- Log in with the temporary password shown in the qBittorrent container logs, then change it immediately
 - Set default save path to `/data/downloads`
+- Do not expose the qBittorrent WebUI publicly; it should stay reachable only through the LAN nginx route
 
 3. Configure Prowlarr
 - URL: `http://<host>:<NGINX_PORT>/prowlarr/`

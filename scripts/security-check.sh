@@ -158,6 +158,26 @@ prepare_env_file() {
   fi
 }
 
+detect_render_gid() {
+  if command -v getent >/dev/null 2>&1 && getent group render >/dev/null 2>&1; then
+    getent group render | awk -F: '{print $3}'
+    return
+  fi
+
+  if [[ -e /dev/dri/renderD128 ]]; then
+    stat -c '%g' /dev/dri/renderD128 2>/dev/null && return
+  fi
+
+  printf '109'
+}
+
+apply_env_defaults() {
+  BIND_IP="${BIND_IP:-0.0.0.0}"
+  JELLYFIN_RENDER_GID="${JELLYFIN_RENDER_GID:-$(detect_render_gid)}"
+  LOG_MAX_SIZE="${LOG_MAX_SIZE:-10m}"
+  LOG_MAX_FILE="${LOG_MAX_FILE:-3}"
+}
+
 get_service_container() {
   local service="$1"
   local container_id
@@ -284,6 +304,8 @@ set -a
 source "${ENV_FILE}"
 set +a
 
+apply_env_defaults
+
 detect_compose_command
 
 (
@@ -313,12 +335,19 @@ expect_mullvad_status "qBittorrent" "${qbittorrent_id}" "true"
 expect_mullvad_status "Sonarr" "${sonarr_id}" "false"
 
 expect_route_ok "/health"
+expect_route_ok "/jellyfin"
 expect_route_ok "/jellyfin/"
+expect_route_ok "/qbittorrent"
 expect_route_ok "/qbittorrent/"
+expect_route_ok "/sonarr"
 expect_route_ok "/sonarr/"
+expect_route_ok "/radarr"
 expect_route_ok "/radarr/"
+expect_route_ok "/prowlarr"
 expect_route_ok "/prowlarr/"
+expect_route_ok "/bazarr"
 expect_route_ok "/bazarr/"
+expect_route_ok "/homepage"
 expect_route_ok "/homepage/"
 
 log_info "Security checks passed."

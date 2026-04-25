@@ -265,6 +265,14 @@ validate_port() {
   (( value >= 1 && value <= 65535 )) || die "${key} must be between 1 and 65535: ${value}"
 }
 
+validate_integer() {
+  local key="$1"
+  local value="${!key:-}"
+
+  [[ -n "${value}" ]] || die "${key} is missing in ${ENV_FILE}"
+  [[ "${value}" =~ ^[0-9]+$ ]] || die "${key} must be numeric: ${value}"
+}
+
 validate_http_url() {
   local key="$1"
   local value="${!key:-}"
@@ -273,7 +281,29 @@ validate_http_url() {
   [[ "${value}" =~ ^https?://[^[:space:]]+$ ]] || die "${key} must start with http:// or https:// and contain no spaces: ${value}"
 }
 
+detect_render_gid() {
+  if command -v getent >/dev/null 2>&1 && getent group render >/dev/null 2>&1; then
+    getent group render | awk -F: '{print $3}'
+    return
+  fi
+
+  if [[ -e /dev/dri/renderD128 ]]; then
+    stat -c '%g' /dev/dri/renderD128 2>/dev/null && return
+  fi
+
+  printf '109'
+}
+
+apply_env_defaults() {
+  BIND_IP="${BIND_IP:-0.0.0.0}"
+  JELLYFIN_RENDER_GID="${JELLYFIN_RENDER_GID:-$(detect_render_gid)}"
+  LOG_MAX_SIZE="${LOG_MAX_SIZE:-10m}"
+  LOG_MAX_FILE="${LOG_MAX_FILE:-3}"
+}
+
 validate_required_env() {
+  apply_env_defaults
+
   local missing=0
   local required=(
     COMMON_PATH
@@ -298,6 +328,9 @@ validate_required_env() {
     exit 1
   fi
 
+  validate_integer "PUID"
+  validate_integer "PGID"
+  validate_integer "JELLYFIN_RENDER_GID"
   validate_port "NGINX_PORT"
   validate_port "JELLYSEERR_PORT"
   validate_http_url "JELLYSEERR_EXTERNAL_URL"
@@ -314,8 +347,12 @@ COMMON_PATH=${COMMON_PATH}
 TZ=${TZ}
 PUID=${PUID}
 PGID=${PGID}
+JELLYFIN_RENDER_GID=${JELLYFIN_RENDER_GID}
+BIND_IP=${BIND_IP}
 NGINX_PORT=${NGINX_PORT}
 JELLYSEERR_PORT=${JELLYSEERR_PORT}
+LOG_MAX_SIZE=${LOG_MAX_SIZE}
+LOG_MAX_FILE=${LOG_MAX_FILE}
 JELLYSEERR_EXTERNAL_URL=${JELLYSEERR_EXTERNAL_URL}
 SERVER_COUNTRIES=${SERVER_COUNTRIES}
 WIREGUARD_ADDRESSES=${WIREGUARD_ADDRESSES}
@@ -335,8 +372,12 @@ print_summary() {
   printf "  %-24s %s\n" "COMMON_PATH (absolute)" "$(resolve_path "${COMMON_PATH}")"
   printf "  %-24s %s\n" "TZ" "${TZ}"
   printf "  %-24s %s\n" "PUID/PGID" "${PUID}/${PGID}"
+  printf "  %-24s %s\n" "JELLYFIN_RENDER_GID" "${JELLYFIN_RENDER_GID}"
+  printf "  %-24s %s\n" "BIND_IP" "${BIND_IP}"
   printf "  %-24s %s\n" "NGINX_PORT" "${NGINX_PORT}"
   printf "  %-24s %s\n" "JELLYSEERR_PORT" "${JELLYSEERR_PORT}"
+  printf "  %-24s %s\n" "LOG_MAX_SIZE" "${LOG_MAX_SIZE}"
+  printf "  %-24s %s\n" "LOG_MAX_FILE" "${LOG_MAX_FILE}"
   printf "  %-24s %s\n" "JELLYSEERR_EXTERNAL_URL" "${JELLYSEERR_EXTERNAL_URL}"
   printf "  %-24s %s\n" "SERVER_COUNTRIES" "${SERVER_COUNTRIES}"
   printf "  %-24s %s\n" "WIREGUARD_ADDRESSES" "$(mask_value "${WIREGUARD_ADDRESSES}")"
@@ -434,8 +475,12 @@ interactive_collect() {
   local default_tz_value="${TZ:-${default_tz}}"
   local default_puid="${PUID:-$(id -u)}"
   local default_pgid="${PGID:-$(id -g)}"
+  local default_render_gid="${JELLYFIN_RENDER_GID:-$(detect_render_gid)}"
+  local default_bind_ip="${BIND_IP:-0.0.0.0}"
   local default_nginx_port="${NGINX_PORT:-8090}"
   local default_jellyseerr_port="${JELLYSEERR_PORT:-5055}"
+  local default_log_max_size="${LOG_MAX_SIZE:-10m}"
+  local default_log_max_file="${LOG_MAX_FILE:-3}"
   local default_server_countries="${SERVER_COUNTRIES:-Sweden}"
   local default_allowed_ips="${WIREGUARD_ALLOWED_IPS:-0.0.0.0/0,::/0}"
   local jellyseerr_external_url_default=""
@@ -446,8 +491,12 @@ interactive_collect() {
   TZ="$(prompt_default "TZ" "${default_tz_value}")"
   PUID="$(prompt_default "PUID" "${default_puid}")"
   PGID="$(prompt_default "PGID" "${default_pgid}")"
+  JELLYFIN_RENDER_GID="$(prompt_default "JELLYFIN_RENDER_GID" "${default_render_gid}")"
+  BIND_IP="$(prompt_default "BIND_IP" "${default_bind_ip}")"
   NGINX_PORT="$(prompt_default "NGINX_PORT" "${default_nginx_port}")"
   JELLYSEERR_PORT="$(prompt_default "JELLYSEERR_PORT" "${default_jellyseerr_port}")"
+  LOG_MAX_SIZE="$(prompt_default "LOG_MAX_SIZE" "${default_log_max_size}")"
+  LOG_MAX_FILE="$(prompt_default "LOG_MAX_FILE" "${default_log_max_file}")"
   jellyseerr_external_url_default="${JELLYSEERR_EXTERNAL_URL:-http://${default_host}:${JELLYSEERR_PORT}}"
   JELLYSEERR_EXTERNAL_URL="$(prompt_default "JELLYSEERR_EXTERNAL_URL" "${jellyseerr_external_url_default}")"
   SERVER_COUNTRIES="$(prompt_default "SERVER_COUNTRIES" "${default_server_countries}")"

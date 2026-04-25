@@ -146,12 +146,55 @@ validate_port() {
   (( value >= 1 && value <= 65535 )) || fail "${key} must be between 1 and 65535: ${value}"
 }
 
+validate_integer() {
+  local key="$1"
+  local value="${!key:-}"
+
+  [[ -n "${value}" ]] || fail "${key} is missing in ${ENV_FILE}"
+  [[ "${value}" =~ ^[0-9]+$ ]] || fail "${key} must be numeric: ${value}"
+}
+
 validate_http_url() {
   local key="$1"
   local value="${!key:-}"
 
   [[ -n "${value}" ]] || return 0
   [[ "${value}" =~ ^https?://[^[:space:]]+$ ]] || fail "${key} must start with http:// or https:// and contain no spaces: ${value}"
+}
+
+detect_render_gid() {
+  if command -v getent >/dev/null 2>&1 && getent group render >/dev/null 2>&1; then
+    getent group render | awk -F: '{print $3}'
+    return
+  fi
+
+  if [[ -e /dev/dri/renderD128 ]]; then
+    stat -c '%g' /dev/dri/renderD128 2>/dev/null && return
+  fi
+
+  printf '109'
+}
+
+apply_env_defaults() {
+  BIND_IP="${BIND_IP:-0.0.0.0}"
+  JELLYFIN_RENDER_GID="${JELLYFIN_RENDER_GID:-$(detect_render_gid)}"
+  LOG_MAX_SIZE="${LOG_MAX_SIZE:-10m}"
+  LOG_MAX_FILE="${LOG_MAX_FILE:-3}"
+}
+
+check_nas_devices() {
+  if [[ ! -e /dev/net/tun ]]; then
+    warn "Missing /dev/net/tun; Gluetun cannot start until the NAS exposes the TUN device."
+  fi
+
+  if [[ ! -d /dev/dri ]]; then
+    warn "Missing /dev/dri; Jellyfin Intel hardware acceleration will not be available."
+    return
+  fi
+
+  if [[ ! -e /dev/dri/renderD128 ]]; then
+    warn "Missing /dev/dri/renderD128; verify TerraMaster TOS exposes the Intel render device."
+  fi
 }
 
 prepare_env_file() {
@@ -218,6 +261,8 @@ set -a
 source "${ENV_FILE}"
 set +a
 
+apply_env_defaults
+
 required=(
   COMMON_PATH
   TZ
@@ -242,9 +287,13 @@ if [[ "${missing}" -ne 0 ]]; then
   exit 1
 fi
 
+validate_integer "PUID"
+validate_integer "PGID"
+validate_integer "JELLYFIN_RENDER_GID"
 validate_port "NGINX_PORT"
 validate_port "JELLYSEERR_PORT"
 validate_http_url "JELLYSEERR_EXTERNAL_URL"
+check_nas_devices
 
 common_path_abs="$(resolve_path "${COMMON_PATH}")"
 if [[ -e "${common_path_abs}" ]]; then

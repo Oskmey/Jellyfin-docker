@@ -9,26 +9,31 @@ If Docker is not on `PATH`, replace `docker compose` below with your host's comp
 git pull
 ```
 
-2. Sync Homepage templates
+2. Create a config-only backup
+```bash
+./scripts/backup-configs.sh
+```
+
+3. Sync Homepage templates
 ```bash
 ./scripts/sync-homepage-config.sh
 ```
 
-3. Review image tags in `docker-compose.yml`
+4. Review image tags in `docker-compose.yml`
 - this repository currently tracks `:latest` tags, so pulls may update multiple services at once
 - read release notes before major version jumps or before restarting services you depend on
 
-4. Pull images
+5. Pull images
 ```bash
 docker compose pull
 ```
 
-5. Recreate containers
+6. Recreate containers
 ```bash
 docker compose up -d
 ```
 
-6. Validate
+7. Validate
 ```bash
 ./scripts/doctor.sh
 ./scripts/security-check.sh
@@ -39,6 +44,7 @@ Validation notes:
 - `doctor.sh` and `security-check.sh` are read-only by default.
 - Use `--fix-env` only if you want either script to normalize `.env` line endings or tighten permissions when supported.
 - After `docker compose up -d`, give healthchecked services time to move to `healthy` before troubleshooting transient startup errors.
+- On TerraMaster, rerun Jellyfin playback checks after image updates if you rely on Intel hardware acceleration.
 
 ## Rollback
 
