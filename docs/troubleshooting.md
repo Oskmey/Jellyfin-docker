@@ -93,6 +93,30 @@ docker compose up -d jellyfin
 
 Avoid kernel or driver changes as a first step on TOS 6/7; confirm the device, group, and Jellyfin settings first.
 
+For poor 4K playback, confirm hardware acceleration is enabled inside Jellyfin itself:
+- Jellyfin Dashboard -> Playback -> Transcoding -> Hardware acceleration: `Intel Quick Sync`
+- QSV/VA-API device: `/dev/dri/renderD128`
+- enable hardware decoding for common 4K codecs such as HEVC and VP9
+- enable hardware tone mapping when HDR content must play on SDR clients
+
+If transcoding starts, verify it is using the iGPU:
+```bash
+docker compose logs --tail 80 jellyfin
+docker compose exec jellyfin sh -lc 'ls -l /dev/dri && /usr/lib/jellyfin-ffmpeg/ffmpeg -hide_banner -hwaccels'
+```
+
+## Jellyfin posters or metadata images fail
+
+Cause:
+- Jellyfin metadata files are not owned by the same `PUID`/`PGID` used by the container
+
+Fix:
+```bash
+set -a; . ./.env; set +a
+chown -R "${PUID}:${PGID}" "${COMMON_PATH}/Jellyfin/Config/metadata"
+docker compose restart jellyfin
+```
+
 ## Jellyfin does not see media
 
 Cause:

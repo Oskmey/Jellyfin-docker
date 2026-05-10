@@ -56,7 +56,7 @@ services:
       - media
 
   qbittorrent:
-    image: lscr.io/linuxserver/qbittorrent:latest
+    image: lscr.io/linuxserver/qbittorrent@sha256:6a7ffbfff04dd109bff37c474bfee00aa08dea5edb78c670439be3ed242b70fa
     container_name: qbittorrent
     logging: *default_logging
     network_mode: service:gluetun
@@ -162,7 +162,7 @@ services:
     environment:
       TZ: ${TZ:?Set TZ in .env}
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8096/health || wget -q --spider http://127.0.0.1:8096 || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8096/health || curl -fsS http://127.0.0.1:8096 || exit 1"]
       <<: *http_healthcheck_defaults
     devices:
       - /dev/dri:/dev/dri
@@ -187,7 +187,7 @@ services:
       CAPTCHA_SOLVER: none
       TZ: ${TZ:?Set TZ in .env}
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8191 || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8191 || exit 1"]
       <<: *http_healthcheck_defaults
 
   jellyseerr:
