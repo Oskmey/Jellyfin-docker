@@ -28,27 +28,10 @@ fail() {
   exit 1
 }
 
-normalize_env_file_line_endings() {
+reject_crlf_env_file() {
   local env_path="$1"
-  local tmp_file
-
-  if LC_ALL=C grep -q $'\r' "${env_path}"; then
-    tmp_file="$(mktemp "${env_path}.tmp.XXXXXX")"
-
-    if [[ -z "${tmp_file}" ]]; then
-      fail "Failed to create temp file for ${env_path}."
-    fi
-
-    if ! tr -d '\r' < "${env_path}" > "${tmp_file}"; then
-      rm -f "${tmp_file}"
-      fail "Failed to normalize line endings in ${env_path}."
-    fi
-
-    if ! mv "${tmp_file}" "${env_path}"; then
-      rm -f "${tmp_file}"
-      fail "Failed to replace ${env_path} after line ending normalization."
-    fi
-  fi
+  LC_ALL=C grep -q $'\r' "${env_path}" && fail "${env_path} uses CRLF line endings; normalize it before syncing."
+  return 0
 }
 
 log_action() {
@@ -108,6 +91,11 @@ copy_template() {
     fail "Failed to set permissions on ${target_file}."
   fi
 
+  if ! chown "${PUID}:${PGID}" "${temp_file}"; then
+    rm -f "${temp_file}"
+    fail "Failed to set ownership on ${target_file} to ${PUID}:${PGID}."
+  fi
+
   if ! mv "${temp_file}" "${target_file}"; then
     rm -f "${temp_file}"
     fail "Failed to replace ${target_file}."
@@ -154,7 +142,7 @@ fi
 [[ -d "${TEMPLATE_DIR}" ]] || fail "Missing Homepage template directory: ${TEMPLATE_DIR}"
 [[ -f "${ENV_FILE}" ]] || fail "Missing env file: ${ENV_FILE}"
 
-normalize_env_file_line_endings "${ENV_FILE}"
+reject_crlf_env_file "${ENV_FILE}"
 
 set -a
 # shellcheck disable=SC1090
@@ -162,6 +150,8 @@ source "${ENV_FILE}"
 set +a
 
 [[ -n "${COMMON_PATH:-}" ]] || fail "COMMON_PATH is missing in ${ENV_FILE}"
+[[ "${PUID:-}" =~ ^[0-9]+$ ]] || fail "PUID must be numeric in ${ENV_FILE}"
+[[ "${PGID:-}" =~ ^[0-9]+$ ]] || fail "PGID must be numeric in ${ENV_FILE}"
 
 TARGET_DIR="$(resolve_path "${COMMON_PATH}")/Homepage/Config"
 
@@ -169,6 +159,8 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
   log_action "Would ensure target directory exists: ${TARGET_DIR}"
 else
   mkdir -p "${TARGET_DIR}"
+  chown "${PUID}:${PGID}" "${TARGET_DIR}" || fail "Failed to set ownership on ${TARGET_DIR}."
+  chmod 0770 "${TARGET_DIR}" || fail "Failed to set permissions on ${TARGET_DIR}."
 fi
 
 copy_template "services.yaml"

@@ -72,7 +72,7 @@ services:
       <<: *http_healthcheck_defaults
     volumes:
       - ${COMMON_PATH:?Set COMMON_PATH in .env}/Qbittorrent/Config:/config
-      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Downloads:/data/downloads
+      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Data/downloads:/data/downloads
 
   sonarr:
     image: lscr.io/linuxserver/sonarr:latest
@@ -89,9 +89,7 @@ services:
       <<: *http_healthcheck_defaults
     volumes:
       - ${COMMON_PATH:?Set COMMON_PATH in .env}/Sonarr/Config:/config
-      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Sonarr/Backup:/data/Backup
-      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Sonarr/tvshows:/data/tvshows
-      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Downloads:/data/downloads
+      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Data:/data
 
   radarr:
     image: lscr.io/linuxserver/radarr:latest
@@ -108,9 +106,7 @@ services:
       <<: *http_healthcheck_defaults
     volumes:
       - ${COMMON_PATH:?Set COMMON_PATH in .env}/Radarr/Config:/config
-      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Radarr/Backup:/data/Backup
-      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Radarr/movies:/data/movies
-      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Downloads:/data/downloads
+      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Data:/data
 
   prowlarr:
     image: lscr.io/linuxserver/prowlarr:latest
@@ -128,8 +124,6 @@ services:
       <<: *http_healthcheck_defaults
     volumes:
       - ${COMMON_PATH:?Set COMMON_PATH in .env}/Prowlarr/Config:/config
-      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Prowlarr/Backup:/data/Backup
-      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Downloads:/data/downloads
 
   bazarr:
     image: lscr.io/linuxserver/bazarr:latest
@@ -146,8 +140,8 @@ services:
       <<: *http_healthcheck_defaults
     volumes:
       - ${COMMON_PATH:?Set COMMON_PATH in .env}/Bazarr/Config:/config
-      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Sonarr/tvshows:/data/tvshows
-      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Radarr/movies:/data/movies
+      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Data/tvshows:/data/tvshows
+      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Data/movies:/data/movies
 
   jellyfin:
     image: jellyfin/jellyfin:latest
@@ -169,9 +163,8 @@ services:
     volumes:
       - ${COMMON_PATH:?Set COMMON_PATH in .env}/Jellyfin/Config:/config
       - ${COMMON_PATH:?Set COMMON_PATH in .env}/Jellyfin/Cache:/cache
-      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Sonarr/tvshows:/data/tvshows
-      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Radarr/movies:/data/movies
-      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Downloads:/data/downloads
+      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Data/tvshows:/data/tvshows
+      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Data/movies:/data/movies
 
   flaresolverr:
     image: ghcr.io/flaresolverr/flaresolverr:latest
@@ -191,8 +184,9 @@ services:
       <<: *http_healthcheck_defaults
 
   jellyseerr:
-    image: fallenbagel/jellyseerr:latest
+    image: ghcr.io/seerr-team/seerr:v3
     container_name: jellyseerr
+    init: true
     logging: *default_logging
     restart: unless-stopped
     networks:
@@ -210,7 +204,7 @@ services:
       LOG_LEVEL: info
       TZ: ${TZ:?Set TZ in .env}
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:5055/api/v1/status || wget -q --spider http://127.0.0.1:5055 || exit 1"]
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:5055/api/v1/status').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
       <<: *http_healthcheck_defaults
     volumes:
       - ${COMMON_PATH:?Set COMMON_PATH in .env}/Jellyseerr/Config:/app/config
@@ -225,14 +219,13 @@ services:
     environment:
       PUID: ${PUID:?Set PUID in .env}
       PGID: ${PGID:?Set PGID in .env}
-      HOMEPAGE_ALLOWED_HOSTS: "*"
+      HOMEPAGE_ALLOWED_HOSTS: ${HOMEPAGE_ALLOWED_HOSTS:?Set HOMEPAGE_ALLOWED_HOSTS in .env}
       HOMEPAGE_VAR_JELLYSEERR_URL: ${JELLYSEERR_EXTERNAL_URL:-http://localhost:5055}
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3000 || exit 1"]
       <<: *http_healthcheck_defaults
     volumes:
       - ${COMMON_PATH:?Set COMMON_PATH in .env}/Homepage/Config:/app/config
-      - /var/run/docker.sock:/var/run/docker.sock:ro
 
   nginx-proxy:
     image: nginx:latest

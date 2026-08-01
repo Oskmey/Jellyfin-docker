@@ -45,6 +45,11 @@ resolve_docker_bin() {
     return 0
   fi
 
+  if [[ -x /Volume1/@apps/DockerEngine/dockerd/bin/docker ]]; then
+    DOCKER_BIN="/Volume1/@apps/DockerEngine/dockerd/bin/docker"
+    return 0
+  fi
+
   return 1
 }
 
@@ -64,6 +69,12 @@ detect_compose_command() {
 
   if command -v docker-compose >/dev/null 2>&1; then
     COMPOSE_CMD=("$(command -v docker-compose)")
+    COMPOSE_CMD_DISPLAY="${COMPOSE_CMD[0]}"
+    return
+  fi
+
+  if [[ -n "${DOCKER_BIN:-}" && -x "$(dirname "${DOCKER_BIN}")/docker-compose" ]]; then
+    COMPOSE_CMD=("$(dirname "${DOCKER_BIN}")/docker-compose")
     COMPOSE_CMD_DISPLAY="${COMPOSE_CMD[0]}"
     return
   fi
@@ -160,6 +171,56 @@ validate_http_url() {
 
   [[ -n "${value}" ]] || return 0
   [[ "${value}" =~ ^https?://[^[:space:]]+$ ]] || fail "${key} must start with http:// or https:// and contain no spaces: ${value}"
+}
+
+validate_homepage_hosts() {
+  [[ -n "${HOMEPAGE_ALLOWED_HOSTS:-}" ]] || fail "HOMEPAGE_ALLOWED_HOSTS is missing in ${ENV_FILE}"
+  [[ "${HOMEPAGE_ALLOWED_HOSTS}" != "*" ]] || fail "HOMEPAGE_ALLOWED_HOSTS must list the LAN/VPN hostnames instead of *."
+  [[ ! "${HOMEPAGE_ALLOWED_HOSTS}" =~ [[:space:]] ]] || fail "HOMEPAGE_ALLOWED_HOSTS must be comma-separated without spaces."
+}
+
+check_data_layout() {
+  local common_path_abs="$1"
+  local legacy_paths=(
+    "${common_path_abs}/Downloads"
+    "${common_path_abs}/Sonarr/tvshows"
+    "${common_path_abs}/Radarr/movies"
+  )
+  local data_paths=(
+    "${common_path_abs}/Data/downloads"
+    "${common_path_abs}/Data/tvshows"
+    "${common_path_abs}/Data/movies"
+  )
+  local path
+  local legacy_found=0
+  local data_found=0
+
+  for path in "${legacy_paths[@]}"; do
+    [[ -d "${path}" ]] && legacy_found=1
+  done
+  for path in "${data_paths[@]}"; do
+    [[ -d "${path}" ]] && data_found=1
+  done
+
+  if [[ "${legacy_found}" -eq 1 && "${data_found}" -eq 1 ]]; then
+    fail "Both legacy and Data media paths exist under ${common_path_abs}; resolve the layout before starting Compose."
+  fi
+  if [[ "${legacy_found}" -eq 1 ]]; then
+    fail "Legacy media layout detected; move Downloads to Data/downloads, Sonarr/tvshows to Data/tvshows, and Radarr/movies to Data/movies before starting the updated stack."
+  fi
+
+  for path in "${data_paths[@]}" "${common_path_abs}/Homepage/Config"; do
+    [[ -e "${path}" ]] || continue
+    [[ -d "${path}" ]] || fail "Expected directory: ${path}"
+    [[ "$(stat -c '%u:%g' "${path}" 2>/dev/null)" == "${PUID}:${PGID}" ]] || warn "Unexpected ownership on ${path}; expected ${PUID}:${PGID}."
+  done
+
+  for path in settings.yaml services.yaml bookmarks.yaml widgets.yaml; do
+    path="${common_path_abs}/Homepage/Config/${path}"
+    [[ -f "${path}" ]] || continue
+    [[ "$(stat -c '%u:%g' "${path}" 2>/dev/null)" == "${PUID}:${PGID}" ]] || fail "Homepage cannot safely update ${path}; expected owner ${PUID}:${PGID}."
+    find "${path}" -maxdepth 0 -perm -u=w -print -quit | grep -q . || fail "Homepage config is not owner-writable: ${path}"
+  done
 }
 
 detect_render_gid() {
@@ -268,6 +329,7 @@ required=(
   TZ
   PUID
   PGID
+  HOMEPAGE_ALLOWED_HOSTS
   WIREGUARD_ADDRESSES
   WIREGUARD_PRIVATE_KEY
   WIREGUARD_PUBLIC_KEY
@@ -293,6 +355,7 @@ validate_integer "JELLYFIN_RENDER_GID"
 validate_port "NGINX_PORT"
 validate_port "JELLYSEERR_PORT"
 validate_http_url "JELLYSEERR_EXTERNAL_URL"
+validate_homepage_hosts
 check_nas_devices
 
 common_path_abs="$(resolve_path "${COMMON_PATH}")"
@@ -306,6 +369,8 @@ else
     fail "Cannot create COMMON_PATH under: ${parent_dir}"
   fi
 fi
+
+check_data_layout "${common_path_abs}"
 
 (
   cd "${REPO_ROOT}"

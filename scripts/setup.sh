@@ -152,6 +152,11 @@ resolve_docker_bin() {
     return 0
   fi
 
+  if [[ -x /Volume1/@apps/DockerEngine/dockerd/bin/docker ]]; then
+    DOCKER_BIN="/Volume1/@apps/DockerEngine/dockerd/bin/docker"
+    return 0
+  fi
+
   return 1
 }
 
@@ -171,6 +176,12 @@ detect_compose_command() {
 
   if command -v docker-compose >/dev/null 2>&1; then
     COMPOSE_CMD=("$(command -v docker-compose)")
+    COMPOSE_CMD_DISPLAY="${COMPOSE_CMD[0]}"
+    return
+  fi
+
+  if [[ -n "${DOCKER_BIN:-}" && -x "$(dirname "${DOCKER_BIN}")/docker-compose" ]]; then
+    COMPOSE_CMD=("$(dirname "${DOCKER_BIN}")/docker-compose")
     COMPOSE_CMD_DISPLAY="${COMPOSE_CMD[0]}"
     return
   fi
@@ -281,6 +292,12 @@ validate_http_url() {
   [[ "${value}" =~ ^https?://[^[:space:]]+$ ]] || die "${key} must start with http:// or https:// and contain no spaces: ${value}"
 }
 
+validate_homepage_hosts() {
+  [[ -n "${HOMEPAGE_ALLOWED_HOSTS:-}" ]] || die "HOMEPAGE_ALLOWED_HOSTS is missing in ${ENV_FILE}"
+  [[ "${HOMEPAGE_ALLOWED_HOSTS}" != "*" ]] || die "HOMEPAGE_ALLOWED_HOSTS must list the LAN/VPN hostnames instead of *."
+  [[ ! "${HOMEPAGE_ALLOWED_HOSTS}" =~ [[:space:]] ]] || die "HOMEPAGE_ALLOWED_HOSTS must be comma-separated without spaces."
+}
+
 detect_render_gid() {
   if command -v getent >/dev/null 2>&1 && getent group render >/dev/null 2>&1; then
     getent group render | awk -F: '{print $3}'
@@ -310,6 +327,7 @@ validate_required_env() {
     TZ
     PUID
     PGID
+    HOMEPAGE_ALLOWED_HOSTS
     WIREGUARD_ADDRESSES
     WIREGUARD_PRIVATE_KEY
     WIREGUARD_PUBLIC_KEY
@@ -334,6 +352,7 @@ validate_required_env() {
   validate_port "NGINX_PORT"
   validate_port "JELLYSEERR_PORT"
   validate_http_url "JELLYSEERR_EXTERNAL_URL"
+  validate_homepage_hosts
 }
 
 load_env_file() {
@@ -350,6 +369,7 @@ PGID=${PGID}
 JELLYFIN_RENDER_GID=${JELLYFIN_RENDER_GID}
 BIND_IP=${BIND_IP}
 NGINX_PORT=${NGINX_PORT}
+HOMEPAGE_ALLOWED_HOSTS=${HOMEPAGE_ALLOWED_HOSTS}
 JELLYSEERR_PORT=${JELLYSEERR_PORT}
 LOG_MAX_SIZE=${LOG_MAX_SIZE}
 LOG_MAX_FILE=${LOG_MAX_FILE}
@@ -375,6 +395,7 @@ print_summary() {
   printf "  %-24s %s\n" "JELLYFIN_RENDER_GID" "${JELLYFIN_RENDER_GID}"
   printf "  %-24s %s\n" "BIND_IP" "${BIND_IP}"
   printf "  %-24s %s\n" "NGINX_PORT" "${NGINX_PORT}"
+  printf "  %-24s %s\n" "HOMEPAGE_ALLOWED_HOSTS" "${HOMEPAGE_ALLOWED_HOSTS}"
   printf "  %-24s %s\n" "JELLYSEERR_PORT" "${JELLYSEERR_PORT}"
   printf "  %-24s %s\n" "LOG_MAX_SIZE" "${LOG_MAX_SIZE}"
   printf "  %-24s %s\n" "LOG_MAX_FILE" "${LOG_MAX_FILE}"
@@ -401,6 +422,8 @@ ensure_directory() {
   fi
 
   mkdir -p "${dir}" || die "Failed to create folder: ${dir}"
+  chown "${PUID}:${PGID}" "${dir}" || die "Failed to set ownership on ${dir} to ${PUID}:${PGID}"
+  chmod 0770 "${dir}" || die "Failed to set permissions on ${dir}"
   DIR_CREATED=$((DIR_CREATED + 1))
   log_ok "Created folder: ${dir}"
 }
@@ -418,17 +441,18 @@ create_directories() {
   local base_path
   base_path="$(resolve_path "${COMMON_PATH}")"
 
+  if [[ -d "${base_path}/Downloads" || -d "${base_path}/Sonarr/tvshows" || -d "${base_path}/Radarr/movies" ]]; then
+    die "Legacy media layout detected; move Downloads to Data/downloads, Sonarr/tvshows to Data/tvshows, and Radarr/movies to Data/movies before running setup."
+  fi
+
   local dirs=(
     "${base_path}/Qbittorrent/Config"
-    "${base_path}/Downloads"
+    "${base_path}/Data/downloads"
+    "${base_path}/Data/tvshows"
+    "${base_path}/Data/movies"
     "${base_path}/Sonarr/Config"
-    "${base_path}/Sonarr/Backup"
-    "${base_path}/Sonarr/tvshows"
     "${base_path}/Radarr/Config"
-    "${base_path}/Radarr/Backup"
-    "${base_path}/Radarr/movies"
     "${base_path}/Prowlarr/Config"
-    "${base_path}/Prowlarr/Backup"
     "${base_path}/Jellyfin/Config"
     "${base_path}/Jellyfin/Cache"
     "${base_path}/Jellyseerr/Config"
@@ -478,11 +502,12 @@ interactive_collect() {
   local default_render_gid="${JELLYFIN_RENDER_GID:-$(detect_render_gid)}"
   local default_bind_ip="${BIND_IP:-0.0.0.0}"
   local default_nginx_port="${NGINX_PORT:-8090}"
+  local default_homepage_hosts="${HOMEPAGE_ALLOWED_HOSTS:-${default_host}:${default_nginx_port},localhost:${default_nginx_port},127.0.0.1:${default_nginx_port}}"
   local default_jellyseerr_port="${JELLYSEERR_PORT:-5055}"
   local default_log_max_size="${LOG_MAX_SIZE:-10m}"
   local default_log_max_file="${LOG_MAX_FILE:-3}"
   local default_server_countries="${SERVER_COUNTRIES:-Sweden}"
-  local default_allowed_ips="${WIREGUARD_ALLOWED_IPS:-0.0.0.0/0,::/0}"
+  local default_allowed_ips="${WIREGUARD_ALLOWED_IPS:-0.0.0.0/0}"
   local jellyseerr_external_url_default=""
 
   printf "%b\n" "${C_BOLD}Environment Setup${C_RESET}"
@@ -494,6 +519,7 @@ interactive_collect() {
   JELLYFIN_RENDER_GID="$(prompt_default "JELLYFIN_RENDER_GID" "${default_render_gid}")"
   BIND_IP="$(prompt_default "BIND_IP" "${default_bind_ip}")"
   NGINX_PORT="$(prompt_default "NGINX_PORT" "${default_nginx_port}")"
+  HOMEPAGE_ALLOWED_HOSTS="$(prompt_default "HOMEPAGE_ALLOWED_HOSTS" "${default_homepage_hosts}")"
   JELLYSEERR_PORT="$(prompt_default "JELLYSEERR_PORT" "${default_jellyseerr_port}")"
   LOG_MAX_SIZE="$(prompt_default "LOG_MAX_SIZE" "${default_log_max_size}")"
   LOG_MAX_FILE="$(prompt_default "LOG_MAX_FILE" "${default_log_max_file}")"

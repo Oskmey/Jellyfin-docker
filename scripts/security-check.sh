@@ -8,6 +8,7 @@ DOCKER_BIN="${DOCKER_BIN:-}"
 COMPOSE_CMD=()
 COMPOSE_CMD_DISPLAY=""
 FIX_ENV=0
+ROUTE_CHECK_HOST="127.0.0.1"
 
 usage() {
   cat <<'USAGE'
@@ -51,6 +52,11 @@ resolve_docker_bin() {
     return 0
   fi
 
+  if [[ -x /Volume1/@apps/DockerEngine/dockerd/bin/docker ]]; then
+    DOCKER_BIN="/Volume1/@apps/DockerEngine/dockerd/bin/docker"
+    return 0
+  fi
+
   fail "Docker is not available. Set DOCKER_BIN or install docker."
 }
 
@@ -72,6 +78,12 @@ detect_compose_command() {
 
   if command -v docker-compose >/dev/null 2>&1; then
     COMPOSE_CMD=("$(command -v docker-compose)")
+    COMPOSE_CMD_DISPLAY="${COMPOSE_CMD[0]}"
+    return
+  fi
+
+  if [[ -n "${DOCKER_BIN:-}" && -x "$(dirname "${DOCKER_BIN}")/docker-compose" ]]; then
+    COMPOSE_CMD=("$(dirname "${DOCKER_BIN}")/docker-compose")
     COMPOSE_CMD_DISPLAY="${COMPOSE_CMD[0]}"
     return
   fi
@@ -176,6 +188,21 @@ apply_env_defaults() {
   JELLYFIN_RENDER_GID="${JELLYFIN_RENDER_GID:-$(detect_render_gid)}"
   LOG_MAX_SIZE="${LOG_MAX_SIZE:-10m}"
   LOG_MAX_FILE="${LOG_MAX_FILE:-3}"
+
+  case "${BIND_IP}" in
+    0.0.0.0)
+      ROUTE_CHECK_HOST="127.0.0.1"
+      ;;
+    ::)
+      ROUTE_CHECK_HOST="[::1]"
+      ;;
+    *:*)
+      ROUTE_CHECK_HOST="[${BIND_IP}]"
+      ;;
+    *)
+      ROUTE_CHECK_HOST="${BIND_IP}"
+      ;;
+  esac
 }
 
 get_service_container() {
@@ -256,7 +283,7 @@ expect_route_ok() {
   local path="$1"
   local status
 
-  status="$(http_status "http://127.0.0.1:${NGINX_PORT:-8090}${path}")"
+  status="$(http_status "http://${ROUTE_CHECK_HOST}:${NGINX_PORT:-8090}${path}")"
   case "${status}" in
     200|204|301|302|307|308)
       log_ok "Route ${path} responds locally with ${status}."

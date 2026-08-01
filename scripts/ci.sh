@@ -4,6 +4,7 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 CI_ENV_FILE=""
+TEST_ROOT=""
 
 BASH_FILES=(
   "scripts/setup.sh"
@@ -31,6 +32,9 @@ fail() {
 cleanup() {
   if [[ -n "${CI_ENV_FILE}" && -f "${CI_ENV_FILE}" ]]; then
     rm -f "${CI_ENV_FILE}"
+  fi
+  if [[ -n "${TEST_ROOT}" && -d "${TEST_ROOT}" ]]; then
+    rm -rf "${TEST_ROOT}"
   fi
 }
 
@@ -95,6 +99,32 @@ EOF
   )
 }
 
+test_data_scripts() {
+  local test_env
+  local uid
+  local gid
+
+  log_step "Data and ownership script tests"
+  TEST_ROOT="$(mktemp -d)" || fail "Failed to create script test directory."
+  test_env="${TEST_ROOT}/test.env"
+  uid="$(id -u)"
+  gid="$(id -g)"
+
+  mkdir -p "${TEST_ROOT}/media"
+  cat > "${test_env}" <<EOF
+COMMON_PATH=${TEST_ROOT}/media
+PUID=${uid}
+PGID=${gid}
+EOF
+  chmod 0600 "${test_env}"
+
+  "${REPO_ROOT}/scripts/sync-homepage-config.sh" --env-file "${test_env}" --dry-run >/dev/null
+  [[ ! -e "${TEST_ROOT}/media/Homepage" ]] || fail "Homepage dry run created target files."
+  "${REPO_ROOT}/scripts/sync-homepage-config.sh" --env-file "${test_env}" >/dev/null
+  [[ "$(stat -c '%u:%g' "${TEST_ROOT}/media/Homepage/Config/settings.yaml")" == "${uid}:${gid}" ]] || fail "Homepage config ownership is incorrect."
+  [[ "$(stat -c '%a' "${TEST_ROOT}/media/Homepage/Config/settings.yaml")" == "644" ]] || fail "Homepage config mode is incorrect."
+}
+
 main() {
   require_command git
   require_command bash
@@ -106,6 +136,7 @@ main() {
   lint_shell
   lint_yaml
   validate_compose
+  test_data_scripts
 
   echo
   echo "CI checks passed."

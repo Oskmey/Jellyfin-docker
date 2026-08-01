@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -79,6 +80,7 @@ if [[ -z "${OUTPUT_DIR}" ]]; then
 fi
 output_dir_abs="$(resolve_path "${OUTPUT_DIR}")"
 mkdir -p "${output_dir_abs}"
+chmod 0700 "${output_dir_abs}" || fail "Failed to restrict backup directory permissions: ${output_dir_abs}"
 
 config_paths=(
   "Jellyfin/Config"
@@ -109,5 +111,7 @@ archive_path="${output_dir_abs}/media-stack-configs-${timestamp}.tar.gz"
   cd "${common_path_abs}"
   tar -czf "${archive_path}" "${existing_paths[@]}"
 )
+
+chmod 0600 "${archive_path}" || fail "Failed to restrict archive permissions: ${archive_path}"
 
 echo "Config backup written: ${archive_path}"
