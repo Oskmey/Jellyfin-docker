@@ -20,7 +20,8 @@ What it does:
 - writes `.env`
 - creates missing media/config directories under `COMMON_PATH` and reuses existing folders safely
 - detects the host `render` group ID for Jellyfin when available
-- syncs the repo-managed Homepage dashboard config into `${COMMON_PATH}/Homepage/Config`
+- generates the Homarr encryption key and Gluetun telemetry API key when missing
+- creates Homarr, Glances, and Gluetun configuration directories with restricted permissions
 - runs compose preflight validation (auto-detects `docker compose` or `docker-compose`, with override support)
 
 ## Non-interactive setup
@@ -35,25 +36,11 @@ Requirements:
 - `.env` already exists
 - all required variables are populated
 
-## Homepage config sync
+## Homarr configuration
 
-The repository now ships Homepage config templates in `homepage/`. Sync them into the mounted config directory with:
+Set the Homarr and Seerr browser URLs to the LAN addresses clients actually use. Setup generates Homarr's encryption key and the Gluetun telemetry key. Preserve both keys when migrating an existing installation.
 
-```bash
-./scripts/sync-homepage-config.sh
-```
-
-Useful safety options:
-
-```bash
-./scripts/sync-homepage-config.sh --dry-run
-./scripts/sync-homepage-config.sh --backup
-./scripts/sync-homepage-config.sh --skip-existing
-```
-
-The sync target is `${COMMON_PATH}/Homepage/Config`.
-Set `JELLYSEERR_EXTERNAL_URL` in `.env` to the browser-facing Jellyseerr URL if your clients do not access the stack through `localhost`.
-Homepage also mounts the Docker socket read-only for container-aware widgets, so treat that container as more sensitive than the rest of the dashboard stack.
+Homarr is configured after first start because its database contains users and encrypted credentials. Follow [`homarr.md`](homarr.md) for the exact boards, integrations, privacy boundaries, appearance, and backup procedure.
 
 ## TerraMaster Docker Manager
 
@@ -67,9 +54,9 @@ Do not start by changing NAS kernel modules or graphics drivers if transcoding f
 
 ## LAN binding
 
-`BIND_IP=0.0.0.0` exposes the nginx and Jellyseerr ports on all NAS interfaces, which is convenient for normal LAN use. Use `BIND_IP=127.0.0.1` for localhost-only testing.
+`BIND_IP=0.0.0.0` exposes the nginx and Seerr ports on all NAS interfaces, which is convenient for normal LAN use. Use `BIND_IP=127.0.0.1` for localhost-only testing.
 
-Keep both exposed ports behind your NAS/router firewall. Do not forward nginx, Jellyseerr, or qBittorrent WebUI ports publicly.
+Keep both exposed ports behind your NAS or router firewall. Do not forward nginx, Seerr, or the qBittorrent WebUI publicly.
 
 ## Start stack
 
@@ -94,7 +81,7 @@ Both check scripts are read-only by default. If you want them to normalize `.env
 
 Notes:
 - qBittorrent is the only service intentionally routed through Gluetun/Mullvad.
-- nginx is intended for LAN use; keep `NGINX_PORT` behind your router/NAS firewall.
-- Jellyseerr remains direct on `JELLYSEERR_PORT` and is not protected by nginx access rules.
+- nginx is intended for LAN use. Keep `NGINX_PORT` behind your router or NAS firewall.
+- Seerr remains direct on its configured port and is not protected by nginx access rules.
 - The stack uses container healthchecks so dependent services wait for healthier upstreams during startup.
 - Docker JSON logs are rotated with `LOG_MAX_SIZE` and `LOG_MAX_FILE` to reduce long-term NAS disk growth.

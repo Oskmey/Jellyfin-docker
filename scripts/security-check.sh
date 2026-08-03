@@ -17,6 +17,9 @@ Usage: scripts/security-check.sh [--env-file PATH] [--fix-env]
 Checks:
   - docker compose config validation
   - nginx syntax and local route responses
+  - Homarr/Glances isolation from the Docker socket and host ports
+  - read-only Docker socket proxy behavior
+  - authenticated, read-only Gluetun telemetry configuration
   - Gluetun health
   - qBittorrent network namespace sharing with Gluetun
   - Mullvad egress from Gluetun and qBittorrent
@@ -205,6 +208,13 @@ apply_env_defaults() {
   esac
 }
 
+validate_hex_secret() {
+  local key="$1"
+  local value="${!key:-}"
+
+  [[ "${value}" =~ ^[[:xdigit:]]{64}$ ]] || fail "${key} must contain exactly 64 hexadecimal characters."
+}
+
 get_service_container() {
   local service="$1"
   local container_id
@@ -212,6 +222,80 @@ get_service_container() {
   container_id="$(run_compose --env-file "${ENV_FILE}" ps -q "${service}")"
   [[ -n "${container_id}" ]] || fail "Service is not running: ${service}"
   printf '%s' "${container_id}"
+}
+
+assert_no_published_ports() {
+  local label="$1"
+  local container_id="$2"
+  local bindings
+
+  bindings="$("${DOCKER_BIN}" inspect --format '{{range $bindings := .NetworkSettings.Ports}}{{range $bindings}}{{println .HostIp .HostPort}}{{end}}{{end}}' "${container_id}")"
+  [[ -z "${bindings}" ]] || fail "${label} unexpectedly publishes a host port: ${bindings}"
+  log_ok "${label} has no published host ports."
+}
+
+assert_no_docker_socket_mount() {
+  local label="$1"
+  local container_id="$2"
+  local mounts
+
+  mounts="$("${DOCKER_BIN}" inspect --format '{{range .Mounts}}{{println .Source "|" .Destination "|" .RW}}{{end}}' "${container_id}")"
+  [[ "${mounts}" != *'/var/run/docker.sock'* ]] || fail "${label} mounts the Docker socket directly."
+  log_ok "${label} has no direct Docker socket mount."
+}
+
+assert_read_only_mount() {
+  local label="$1"
+  local container_id="$2"
+  local destination="$3"
+  local mount_state
+
+  mount_state="$("${DOCKER_BIN}" inspect --format "{{range .Mounts}}{{if eq .Destination \"${destination}\"}}{{println .RW}}{{end}}{{end}}" "${container_id}")"
+  [[ "${mount_state}" == "false" ]] || fail "${label} must mount ${destination} read-only."
+  log_ok "${label} mounts ${destination} read-only."
+}
+
+assert_container_env() {
+  local container_id="$1"
+  local expected="$2"
+  local env_lines
+
+  env_lines="$("${DOCKER_BIN}" inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "${container_id}")"
+  grep -Fqx "${expected}" <<< "${env_lines}" || fail "Missing required container setting: ${expected}"
+}
+
+check_docker_proxy_policy() {
+  local homarr_id="$1"
+  local proxy_id="$2"
+  local status
+
+  assert_container_env "${proxy_id}" "POST=0"
+  assert_container_env "${proxy_id}" "CONTAINERS=1"
+  assert_container_env "${proxy_id}" "INFO=1"
+  assert_container_env "${proxy_id}" "PING=1"
+  assert_container_env "${proxy_id}" "VERSION=1"
+
+  "${DOCKER_BIN}" exec "${homarr_id}" node -e \
+    "fetch('http://docker-socket-proxy:2375/_ping').then(async r=>process.exit(r.ok&&(await r.text()).trim()==='OK'?0:1)).catch(()=>process.exit(1))" || \
+    fail "Homarr cannot read the Docker proxy health endpoint."
+
+  status="$("${DOCKER_BIN}" exec "${homarr_id}" node -e \
+    "fetch('http://docker-socket-proxy:2375/containers/security-check-does-not-exist/start',{method:'POST'}).then(r=>console.log(r.status)).catch(()=>process.exit(1))")"
+  [[ "${status}" == "403" ]] || fail "Docker proxy accepted or mishandled a POST request (status ${status:-unknown})."
+  log_ok "Docker proxy permits telemetry GETs and rejects container-control POSTs."
+}
+
+check_gluetun_control_policy() {
+  local gluetun_id="$1"
+
+  if "${DOCKER_BIN}" exec "${gluetun_id}" wget -qO- http://127.0.0.1:8000/v1/vpn/status >/dev/null 2>&1; then
+    fail "Gluetun telemetry endpoint permits unauthenticated access."
+  fi
+
+  "${DOCKER_BIN}" exec -e "SECURITY_CHECK_API_KEY=${GLUETUN_CONTROL_API_KEY}" "${gluetun_id}" sh -c \
+    'wget -qO- --header "X-API-Key: ${SECURITY_CHECK_API_KEY}" http://127.0.0.1:8000/v1/vpn/status >/dev/null' || \
+    fail "Authenticated Gluetun VPN telemetry request failed."
+  log_ok "Gluetun telemetry requires the configured API key."
 }
 
 fetch_container_json() {
@@ -332,6 +416,8 @@ source "${ENV_FILE}"
 set +a
 
 apply_env_defaults
+validate_hex_secret "HOMARR_SECRET_ENCRYPTION_KEY"
+validate_hex_secret "GLUETUN_CONTROL_API_KEY"
 
 detect_compose_command
 
@@ -345,6 +431,9 @@ gluetun_id="$(get_service_container "gluetun")"
 qbittorrent_id="$(get_service_container "qbittorrent")"
 sonarr_id="$(get_service_container "sonarr")"
 nginx_id="$(get_service_container "nginx-proxy")"
+homarr_id="$(get_service_container "homarr")"
+glances_id="$(get_service_container "glances")"
+docker_proxy_id="$(get_service_container "docker-socket-proxy")"
 
 gluetun_health="$("${DOCKER_BIN}" inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "${gluetun_id}")"
 [[ "${gluetun_health}" == "healthy" ]] || fail "Gluetun is not healthy: ${gluetun_health}"
@@ -354,6 +443,17 @@ qbittorrent_mode="$("${DOCKER_BIN}" inspect --format '{{.HostConfig.NetworkMode}
 [[ "${qbittorrent_mode}" == "container:${gluetun_id}" ]] || fail "qBittorrent is not sharing Gluetun's network namespace: ${qbittorrent_mode}"
 log_ok "qBittorrent shares Gluetun's network namespace."
 
+assert_no_published_ports "Homarr" "${homarr_id}"
+assert_no_published_ports "Glances" "${glances_id}"
+assert_no_published_ports "Docker socket proxy" "${docker_proxy_id}"
+assert_no_docker_socket_mount "Homarr" "${homarr_id}"
+assert_no_docker_socket_mount "Glances" "${glances_id}"
+assert_read_only_mount "Docker socket proxy" "${docker_proxy_id}" "/var/run/docker.sock"
+assert_read_only_mount "Gluetun" "${gluetun_id}" "/gluetun/auth/config.toml"
+assert_read_only_mount "Glances" "${glances_id}" "/etc/glances.conf"
+check_docker_proxy_policy "${homarr_id}" "${docker_proxy_id}"
+check_gluetun_control_policy "${gluetun_id}"
+
 "${DOCKER_BIN}" exec "${nginx_id}" nginx -t > /dev/null
 log_ok "nginx syntax validation passed."
 
@@ -362,6 +462,7 @@ expect_mullvad_status "qBittorrent" "${qbittorrent_id}" "true"
 expect_mullvad_status "Sonarr" "${sonarr_id}" "false"
 
 expect_route_ok "/health"
+expect_route_ok "/"
 expect_route_ok "/jellyfin"
 expect_route_ok "/jellyfin/"
 expect_route_ok "/qbittorrent"

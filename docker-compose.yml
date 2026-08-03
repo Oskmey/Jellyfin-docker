@@ -3,6 +3,9 @@ name: jellyfin-docker
 networks:
   media:
     driver: bridge
+  docker-api:
+    driver: bridge
+    internal: true
 
 x-linuxserver-env: &linuxserver_env
   PUID: ${PUID:?Set PUID in .env}
@@ -46,6 +49,8 @@ services:
       WIREGUARD_ALLOWED_IPS: ${WIREGUARD_ALLOWED_IPS:?Set WIREGUARD_ALLOWED_IPS in .env}
       SERVER_COUNTRIES: ${SERVER_COUNTRIES:-Sweden}
       DNS: 1.1.1.1
+      HTTP_CONTROL_SERVER_ADDRESS: :8000
+      HTTP_CONTROL_SERVER_AUTH_CONFIG_FILEPATH: /gluetun/auth/config.toml
     healthcheck:
       test: ["CMD", "/gluetun-entrypoint", "healthcheck"]
       interval: 30s
@@ -54,6 +59,10 @@ services:
       start_period: 20s
     networks:
       - media
+    expose:
+      - "8000"
+    volumes:
+      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Gluetun/Auth/config.toml:/gluetun/auth/config.toml:ro
 
   qbittorrent:
     image: lscr.io/linuxserver/qbittorrent@sha256:6a7ffbfff04dd109bff37c474bfee00aa08dea5edb78c670439be3ed242b70fa
@@ -209,23 +218,78 @@ services:
     volumes:
       - ${COMMON_PATH:?Set COMMON_PATH in .env}/Jellyseerr/Config:/app/config
 
-  homepage:
-    image: ghcr.io/gethomepage/homepage:latest
-    container_name: homepage
+  homarr:
+    image: ghcr.io/homarr-labs/homarr:v1.73.0@sha256:72f98c87dbd556736a3f25f7d19fefa77a7e48eb76c4d7929e5535f7e3c0fdd0
+    container_name: homarr
     logging: *default_logging
     restart: unless-stopped
     networks:
       - media
+      - docker-api
     environment:
       PUID: ${PUID:?Set PUID in .env}
       PGID: ${PGID:?Set PGID in .env}
-      HOMEPAGE_ALLOWED_HOSTS: ${HOMEPAGE_ALLOWED_HOSTS:?Set HOMEPAGE_ALLOWED_HOSTS in .env}
-      HOMEPAGE_VAR_JELLYSEERR_URL: ${JELLYSEERR_EXTERNAL_URL:-http://localhost:5055}
+      TZ: ${TZ:?Set TZ in .env}
+      SECRET_ENCRYPTION_KEY: ${HOMARR_SECRET_ENCRYPTION_KEY:?Set HOMARR_SECRET_ENCRYPTION_KEY in .env}
+      BASE_URL: ${HOMARR_BASE_URL:?Set HOMARR_BASE_URL in .env}
+      AUTH_PROVIDERS: credentials
+      DOCKER_HOSTNAMES: docker-socket-proxy
+      DOCKER_PORTS: "2375"
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3000 || exit 1"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:7575/api/health/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       <<: *http_healthcheck_defaults
     volumes:
-      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Homepage/Config:/app/config
+      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Homarr/AppData:/appdata
+
+  glances:
+    image: nicolargo/glances:4.5.4-full@sha256:4b95c50820107884574059741a1a787bfae3b499e8b003be32abc9d756084c06
+    container_name: glances
+    logging: *default_logging
+    restart: unless-stopped
+    pid: host
+    networks:
+      - media
+    environment:
+      TZ: ${TZ:?Set TZ in .env}
+      GLANCES_OPT: "-w --disable-webui --disable-process --disable-plugin network -C /etc/glances.conf"
+    expose:
+      - "61208"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:61208/api/4/status', timeout=5)"]
+      <<: *http_healthcheck_defaults
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Glances/glances.conf:/etc/glances.conf:ro
+      - /etc/os-release:/etc/os-release:ro
+      - /sys:/sys:ro
+      - ${COMMON_PATH:?Set COMMON_PATH in .env}/Data:/host-data:ro
+
+  docker-socket-proxy:
+    image: lscr.io/linuxserver/socket-proxy:latest@sha256:5253050dd304d351df2ee61bba43c57dd2b19bb640497a679592051de3a3c639
+    container_name: docker-socket-proxy
+    logging: *default_logging
+    restart: unless-stopped
+    networks:
+      - docker-api
+    environment:
+      CONTAINERS: "1"
+      INFO: "1"
+      PING: "1"
+      VERSION: "1"
+      POST: "0"
+      ALLOW_START: "0"
+      ALLOW_STOP: "0"
+      ALLOW_RESTARTS: "0"
+    expose:
+      - "2375"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:2375/_ping | grep -qx OK"]
+      <<: *http_healthcheck_defaults
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
 
   nginx-proxy:
     image: nginx:latest
@@ -234,21 +298,6 @@ services:
     restart: unless-stopped
     networks:
       - media
-    depends_on:
-      jellyfin:
-        condition: service_healthy
-      sonarr:
-        condition: service_healthy
-      radarr:
-        condition: service_healthy
-      prowlarr:
-        condition: service_healthy
-      bazarr:
-        condition: service_healthy
-      qbittorrent:
-        condition: service_healthy
-      homepage:
-        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "nginx -t"]
       interval: 30s
@@ -258,4 +307,5 @@ services:
       - ${BIND_IP:-0.0.0.0}:${NGINX_PORT:-8090}:80
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/assets:/usr/share/nginx/html/assets:ro
       - ./nginx/logs:/var/log/nginx

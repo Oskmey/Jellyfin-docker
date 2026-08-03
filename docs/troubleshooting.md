@@ -26,7 +26,24 @@ docker compose logs -f <service>
 
 Notes:
 - Immediately after startup, wait for healthchecks to settle before assuming a persistent proxy issue.
-- `docker compose ps` should show `healthy` for the services that nginx or Jellyseerr depend on.
+- `docker compose ps` should show `healthy` for the services that nginx or Seerr depend on.
+
+## Homarr loads but a widget is unavailable
+
+Cause:
+- the application integration URL or API key is wrong
+- the upstream is still starting
+- the Glances, Docker proxy, or Gluetun integration is using a browser URL instead of its internal Docker URL
+
+Fix:
+```bash
+docker compose ps
+docker compose logs --tail 100 homarr glances docker-socket-proxy gluetun
+```
+
+Compare the integration URL with [`homarr.md`](homarr.md). Do not publish an internal telemetry port to work around an integration error.
+
+If a public widget reveals an internal URL, username, request detail, download name, VPN address, filesystem, or raw error, remove it from **Home Cinema** immediately and keep it only on the private board after verifying its fields.
 
 ## qBittorrent cannot connect or has no VPN tunnel
 
@@ -91,7 +108,7 @@ Set `JELLYFIN_RENDER_GID` in `.env` to the host render group ID or the group ID 
 docker compose up -d jellyfin
 ```
 
-Avoid kernel or driver changes as a first step on TOS 6/7; confirm the device, group, and Jellyfin settings first.
+Avoid kernel or driver changes as a first step on TOS 6/7. Confirm the device, group, and Jellyfin settings first.
 
 For poor 4K playback, confirm hardware acceleration is enabled inside Jellyfin itself:
 - Jellyfin Dashboard -> Playback -> Transcoding -> Hardware acceleration: `Intel Quick Sync`
@@ -112,7 +129,9 @@ Cause:
 
 Fix:
 ```bash
-set -a; . ./.env; set +a
+set -a
+. ./.env
+set +a
 chown -R "${PUID}:${PGID}" "${COMMON_PATH}/Jellyfin/Config/metadata"
 docker compose restart jellyfin
 ```

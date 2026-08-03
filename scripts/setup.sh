@@ -120,6 +120,80 @@ mask_value() {
   printf '%s****%s' "${value:0:4}" "${value: -4}"
 }
 
+generate_hex_secret() {
+  if command -v openssl >/dev/null 2>&1; then
+    openssl rand -hex 32
+    return
+  fi
+
+  [[ -r /dev/urandom ]] || die "Cannot generate secrets: openssl is unavailable and /dev/urandom is not readable."
+  od -An -N32 -tx1 /dev/urandom | tr -d ' \n'
+}
+
+validate_hex_secret() {
+  local key="$1"
+  local value="${!key:-}"
+
+  [[ "${value}" =~ ^[[:xdigit:]]{64}$ ]] || die "${key} must contain exactly 64 hexadecimal characters."
+}
+
+upsert_env_value() {
+  local key="$1"
+  local value="$2"
+  local tmp_file
+
+  [[ -f "${ENV_FILE}" ]] || return 0
+  tmp_file="$(mktemp "${ENV_FILE}.tmp.XXXXXX")" || die "Failed to create temporary env file."
+  if ! awk -v key="${key}" -v value="${value}" '
+    $0 ~ "^" key "=" { print key "=" value; found=1; next }
+    { print }
+    END { if (!found) print key "=" value }
+  ' "${ENV_FILE}" > "${tmp_file}"; then
+    rm -f "${tmp_file}"
+    die "Failed to update ${key} in ${ENV_FILE}."
+  fi
+  mv "${tmp_file}" "${ENV_FILE}" || die "Failed to replace ${ENV_FILE}."
+  ensure_env_file_permissions "${ENV_FILE}"
+}
+
+ensure_generated_secrets() {
+  local homarr_url_generated=0
+  local homarr_generated=0
+  local gluetun_generated=0
+
+  if [[ -z "${HOMARR_BASE_URL:-}" ]]; then
+    HOMARR_BASE_URL="http://localhost:${NGINX_PORT:-8090}"
+    export HOMARR_BASE_URL
+    homarr_url_generated=1
+  fi
+  if [[ -z "${HOMARR_SECRET_ENCRYPTION_KEY:-}" || "${HOMARR_SECRET_ENCRYPTION_KEY}" == "GENERATE_WITH_SETUP" ]]; then
+    HOMARR_SECRET_ENCRYPTION_KEY="$(generate_hex_secret)"
+    export HOMARR_SECRET_ENCRYPTION_KEY
+    homarr_generated=1
+  fi
+  if [[ -z "${GLUETUN_CONTROL_API_KEY:-}" || "${GLUETUN_CONTROL_API_KEY}" == "GENERATE_WITH_SETUP" ]]; then
+    GLUETUN_CONTROL_API_KEY="$(generate_hex_secret)"
+    export GLUETUN_CONTROL_API_KEY
+    gluetun_generated=1
+  fi
+
+  validate_hex_secret "HOMARR_SECRET_ENCRYPTION_KEY"
+  validate_hex_secret "GLUETUN_CONTROL_API_KEY"
+
+  if [[ "${homarr_url_generated}" -eq 1 ]]; then
+    upsert_env_value "HOMARR_BASE_URL" "${HOMARR_BASE_URL}"
+    log_ok "Added default HOMARR_BASE_URL (${HOMARR_BASE_URL}); update it if clients use another LAN hostname."
+  fi
+  if [[ "${homarr_generated}" -eq 1 ]]; then
+    upsert_env_value "HOMARR_SECRET_ENCRYPTION_KEY" "${HOMARR_SECRET_ENCRYPTION_KEY}"
+    log_ok "Generated and stored HOMARR_SECRET_ENCRYPTION_KEY ($(mask_value "${HOMARR_SECRET_ENCRYPTION_KEY}"))."
+  fi
+  if [[ "${gluetun_generated}" -eq 1 ]]; then
+    upsert_env_value "GLUETUN_CONTROL_API_KEY" "${GLUETUN_CONTROL_API_KEY}"
+    log_ok "Generated and stored GLUETUN_CONTROL_API_KEY ($(mask_value "${GLUETUN_CONTROL_API_KEY}"))."
+  fi
+}
+
 ensure_env_file_permissions() {
   local env_path="$1"
 
@@ -292,12 +366,6 @@ validate_http_url() {
   [[ "${value}" =~ ^https?://[^[:space:]]+$ ]] || die "${key} must start with http:// or https:// and contain no spaces: ${value}"
 }
 
-validate_homepage_hosts() {
-  [[ -n "${HOMEPAGE_ALLOWED_HOSTS:-}" ]] || die "HOMEPAGE_ALLOWED_HOSTS is missing in ${ENV_FILE}"
-  [[ "${HOMEPAGE_ALLOWED_HOSTS}" != "*" ]] || die "HOMEPAGE_ALLOWED_HOSTS must list the LAN/VPN hostnames instead of *."
-  [[ ! "${HOMEPAGE_ALLOWED_HOSTS}" =~ [[:space:]] ]] || die "HOMEPAGE_ALLOWED_HOSTS must be comma-separated without spaces."
-}
-
 detect_render_gid() {
   if command -v getent >/dev/null 2>&1 && getent group render >/dev/null 2>&1; then
     getent group render | awk -F: '{print $3}'
@@ -316,6 +384,7 @@ apply_env_defaults() {
   JELLYFIN_RENDER_GID="${JELLYFIN_RENDER_GID:-$(detect_render_gid)}"
   LOG_MAX_SIZE="${LOG_MAX_SIZE:-10m}"
   LOG_MAX_FILE="${LOG_MAX_FILE:-3}"
+  HOMARR_BASE_URL="${HOMARR_BASE_URL:-http://localhost:${NGINX_PORT:-8090}}"
 }
 
 validate_required_env() {
@@ -327,7 +396,9 @@ validate_required_env() {
     TZ
     PUID
     PGID
-    HOMEPAGE_ALLOWED_HOSTS
+    HOMARR_BASE_URL
+    HOMARR_SECRET_ENCRYPTION_KEY
+    GLUETUN_CONTROL_API_KEY
     WIREGUARD_ADDRESSES
     WIREGUARD_PRIVATE_KEY
     WIREGUARD_PUBLIC_KEY
@@ -351,8 +422,10 @@ validate_required_env() {
   validate_integer "JELLYFIN_RENDER_GID"
   validate_port "NGINX_PORT"
   validate_port "JELLYSEERR_PORT"
+  validate_http_url "HOMARR_BASE_URL"
   validate_http_url "JELLYSEERR_EXTERNAL_URL"
-  validate_homepage_hosts
+  validate_hex_secret "HOMARR_SECRET_ENCRYPTION_KEY"
+  validate_hex_secret "GLUETUN_CONTROL_API_KEY"
 }
 
 load_env_file() {
@@ -369,7 +442,9 @@ PGID=${PGID}
 JELLYFIN_RENDER_GID=${JELLYFIN_RENDER_GID}
 BIND_IP=${BIND_IP}
 NGINX_PORT=${NGINX_PORT}
-HOMEPAGE_ALLOWED_HOSTS=${HOMEPAGE_ALLOWED_HOSTS}
+HOMARR_BASE_URL=${HOMARR_BASE_URL}
+HOMARR_SECRET_ENCRYPTION_KEY=${HOMARR_SECRET_ENCRYPTION_KEY}
+GLUETUN_CONTROL_API_KEY=${GLUETUN_CONTROL_API_KEY}
 JELLYSEERR_PORT=${JELLYSEERR_PORT}
 LOG_MAX_SIZE=${LOG_MAX_SIZE}
 LOG_MAX_FILE=${LOG_MAX_FILE}
@@ -395,7 +470,9 @@ print_summary() {
   printf "  %-24s %s\n" "JELLYFIN_RENDER_GID" "${JELLYFIN_RENDER_GID}"
   printf "  %-24s %s\n" "BIND_IP" "${BIND_IP}"
   printf "  %-24s %s\n" "NGINX_PORT" "${NGINX_PORT}"
-  printf "  %-24s %s\n" "HOMEPAGE_ALLOWED_HOSTS" "${HOMEPAGE_ALLOWED_HOSTS}"
+  printf "  %-24s %s\n" "HOMARR_BASE_URL" "${HOMARR_BASE_URL}"
+  printf "  %-24s %s\n" "HOMARR_SECRET_KEY" "$(mask_value "${HOMARR_SECRET_ENCRYPTION_KEY}")"
+  printf "  %-24s %s\n" "GLUETUN_CONTROL_KEY" "$(mask_value "${GLUETUN_CONTROL_API_KEY}")"
   printf "  %-24s %s\n" "JELLYSEERR_PORT" "${JELLYSEERR_PORT}"
   printf "  %-24s %s\n" "LOG_MAX_SIZE" "${LOG_MAX_SIZE}"
   printf "  %-24s %s\n" "LOG_MAX_FILE" "${LOG_MAX_FILE}"
@@ -457,7 +534,9 @@ create_directories() {
     "${base_path}/Jellyfin/Cache"
     "${base_path}/Jellyseerr/Config"
     "${base_path}/Bazarr/Config"
-    "${base_path}/Homepage/Config"
+    "${base_path}/Homarr/AppData"
+    "${base_path}/Glances"
+    "${base_path}/Gluetun/Auth"
   )
 
   log_info "COMMON_PATH resolved to: ${base_path}"
@@ -470,10 +549,51 @@ create_directories() {
   log_ok "Folder checks complete (${#dirs[@]} targets)."
 }
 
-sync_homepage_config() {
-  log_info "Syncing repo-managed Homepage config..."
-  "${SCRIPT_DIR}/sync-homepage-config.sh" --env-file "${ENV_FILE}"
-  log_ok "Homepage config synced."
+write_gluetun_auth_config() {
+  local base_path
+  local auth_file
+  local temp_file
+
+  base_path="$(resolve_path "${COMMON_PATH}")"
+  auth_file="${base_path}/Gluetun/Auth/config.toml"
+  temp_file="$(mktemp "${auth_file}.tmp.XXXXXX")" || die "Failed to create temporary Gluetun auth config."
+
+  if ! printf '%s\n' \
+    '[[roles]]' \
+    'name = "homarr-read-only"' \
+    'routes = ["GET /v1/vpn/status", "GET /v1/dns/status", "GET /v1/publicip/ip"]' \
+    'auth = "apikey"' \
+    "apikey = \"${GLUETUN_CONTROL_API_KEY}\"" > "${temp_file}"; then
+    rm -f "${temp_file}"
+    die "Failed to render Gluetun auth config."
+  fi
+
+  chown "${PUID}:${PGID}" "${temp_file}" || die "Failed to set Gluetun auth config ownership."
+  chmod 0600 "${temp_file}" || die "Failed to restrict Gluetun auth config permissions."
+  mv "${temp_file}" "${auth_file}" || die "Failed to install Gluetun auth config."
+  log_ok "Installed restricted Gluetun control-server auth config: ${auth_file}"
+}
+
+write_glances_config() {
+  local base_path
+  local config_file
+  local temp_file
+
+  base_path="$(resolve_path "${COMMON_PATH}")"
+  config_file="${base_path}/Glances/glances.conf"
+  temp_file="$(mktemp "${config_file}.tmp.XXXXXX")" || die "Failed to create temporary Glances config."
+
+  if ! printf '%s\n' \
+    '[outputs]' \
+    'webui_allowed_hosts=glances,localhost,127.0.0.1' > "${temp_file}"; then
+    rm -f "${temp_file}"
+    die "Failed to render Glances config."
+  fi
+
+  chown "${PUID}:${PGID}" "${temp_file}" || die "Failed to set Glances config ownership."
+  chmod 0644 "${temp_file}" || die "Failed to set Glances config permissions."
+  mv "${temp_file}" "${config_file}" || die "Failed to install Glances config."
+  log_ok "Installed internal-only Glances web API config: ${config_file}"
 }
 
 run_preflight() {
@@ -502,7 +622,7 @@ interactive_collect() {
   local default_render_gid="${JELLYFIN_RENDER_GID:-$(detect_render_gid)}"
   local default_bind_ip="${BIND_IP:-0.0.0.0}"
   local default_nginx_port="${NGINX_PORT:-8090}"
-  local default_homepage_hosts="${HOMEPAGE_ALLOWED_HOSTS:-${default_host}:${default_nginx_port},localhost:${default_nginx_port},127.0.0.1:${default_nginx_port}}"
+  local default_homarr_base_url="${HOMARR_BASE_URL:-http://${default_host}:${default_nginx_port}}"
   local default_jellyseerr_port="${JELLYSEERR_PORT:-5055}"
   local default_log_max_size="${LOG_MAX_SIZE:-10m}"
   local default_log_max_file="${LOG_MAX_FILE:-3}"
@@ -519,7 +639,7 @@ interactive_collect() {
   JELLYFIN_RENDER_GID="$(prompt_default "JELLYFIN_RENDER_GID" "${default_render_gid}")"
   BIND_IP="$(prompt_default "BIND_IP" "${default_bind_ip}")"
   NGINX_PORT="$(prompt_default "NGINX_PORT" "${default_nginx_port}")"
-  HOMEPAGE_ALLOWED_HOSTS="$(prompt_default "HOMEPAGE_ALLOWED_HOSTS" "${default_homepage_hosts}")"
+  HOMARR_BASE_URL="$(prompt_default "HOMARR_BASE_URL" "${default_homarr_base_url}")"
   JELLYSEERR_PORT="$(prompt_default "JELLYSEERR_PORT" "${default_jellyseerr_port}")"
   LOG_MAX_SIZE="$(prompt_default "LOG_MAX_SIZE" "${default_log_max_size}")"
   LOG_MAX_FILE="$(prompt_default "LOG_MAX_FILE" "${default_log_max_file}")"
@@ -535,6 +655,7 @@ interactive_collect() {
   WIREGUARD_PUBLIC_KEY="$(prompt_required "WIREGUARD_PUBLIC_KEY" "${WIREGUARD_PUBLIC_KEY:-}")"
   WIREGUARD_ENDPOINT="$(prompt_required "WIREGUARD_ENDPOINT" "${WIREGUARD_ENDPOINT:-}")"
   WIREGUARD_ALLOWED_IPS="$(prompt_default "WIREGUARD_ALLOWED_IPS" "${default_allowed_ips}")"
+  ensure_generated_secrets
 }
 
 confirm_continue() {
@@ -603,6 +724,7 @@ log_ok "Docker Compose checks passed (${COMPOSE_CMD_DISPLAY})."
 log_step "Environment configuration"
 if [[ "${NON_INTERACTIVE}" -eq 1 ]]; then
   load_env_file
+  ensure_generated_secrets
   validate_required_env
   log_ok "Loaded and validated ${ENV_FILE}."
 else
@@ -612,6 +734,7 @@ else
     if [[ "${FORCE}" -eq 0 ]]; then
       read -r -p "${ENV_FILE} exists. Reuse and validate current values? [Y/n]: " reuse
       if [[ -z "${reuse}" || "${reuse}" =~ ^[Yy]$ ]]; then
+        ensure_generated_secrets
         validate_required_env
         log_ok "Using existing env file values."
       else
@@ -634,14 +757,18 @@ else
   fi
 fi
 
+ensure_generated_secrets
 validate_required_env
 log_ok "Required env values are present."
 
 log_step "Folder provisioning"
 create_directories
 
-log_step "Homepage dashboard sync"
-sync_homepage_config
+log_step "Gluetun telemetry authentication"
+write_gluetun_auth_config
+
+log_step "Glances API restrictions"
+write_glances_config
 
 log_step "Compose preflight"
 run_preflight

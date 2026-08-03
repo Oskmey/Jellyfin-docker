@@ -14,10 +14,7 @@ git pull
 ./scripts/backup-configs.sh
 ```
 
-3. Sync Homepage templates
-```bash
-./scripts/sync-homepage-config.sh
-```
+3. Export a Homarr backup from its management screen and preserve `HOMARR_SECRET_ENCRYPTION_KEY` separately.
 
 4. Review image tags in `docker-compose.yml`
 - this repository currently tracks `:latest` tags, so pulls may update multiple services at once
@@ -45,6 +42,8 @@ Validation notes:
 - Use `--fix-env` only if you want either script to normalize `.env` line endings or tighten permissions when supported.
 - After `docker compose up -d`, give healthchecked services time to move to `healthy` before troubleshooting transient startup errors.
 - On TerraMaster, rerun Jellyfin playback checks after image updates if you rely on Intel hardware acceleration.
+- Confirm the public Home Cinema board has not gained private fields after a Homarr update.
+- Confirm Docker write methods and Gluetun mutation routes remain blocked.
 
 ## Rollback
 

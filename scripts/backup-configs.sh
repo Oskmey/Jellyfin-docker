@@ -13,7 +13,9 @@ Usage: scripts/backup-configs.sh [--env-file PATH] [--output-dir PATH]
 
 Creates a timestamped tar.gz archive containing only service configuration
 folders from COMMON_PATH. Media libraries and downloads are intentionally
-excluded.
+excluded. Homarr's appdata is included, but a Homarr ZIP export is preferred
+for a consistent backup while Homarr is running. Secrets from .env and the
+Gluetun control-server auth file are never included.
 USAGE
 }
 
@@ -90,15 +92,23 @@ config_paths=(
   "Prowlarr/Config"
   "Bazarr/Config"
   "Qbittorrent/Config"
+  "Homarr/AppData"
+  "Glances/glances.conf"
+  # Retain legacy Homepage data during the migration rollback window.
   "Homepage/Config"
 )
 
+if [[ -d "${common_path_abs}/Homarr/AppData" ]]; then
+  warn "Homarr/AppData is stateful SQLite data. Export a Homarr backup ZIP first, or stop Homarr before relying on this archive."
+  warn "Keep HOMARR_SECRET_ENCRYPTION_KEY in a separate protected escrow; it is not included here."
+fi
+
 existing_paths=()
 for path in "${config_paths[@]}"; do
-  if [[ -d "${common_path_abs}/${path}" ]]; then
+  if [[ -e "${common_path_abs}/${path}" ]]; then
     existing_paths+=("${path}")
   else
-    warn "Skipping missing config folder: ${common_path_abs}/${path}"
+    warn "Skipping missing config path: ${common_path_abs}/${path}"
   fi
 done
 

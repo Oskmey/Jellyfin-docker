@@ -15,8 +15,9 @@ Usage: scripts/doctor.sh [--env-file PATH] [--fix-env]
 
 Checks:
   - docker and compose availability (`docker compose` or `docker-compose`)
-  - required env values
-  - COMMON_PATH write access
+  - required env values and dashboard secret formats
+  - COMMON_PATH write access and service directory ownership
+  - Homarr memory prerequisite and Gluetun auth configuration
   - docker compose config validation
 
 Environment:
@@ -173,10 +174,11 @@ validate_http_url() {
   [[ "${value}" =~ ^https?://[^[:space:]]+$ ]] || fail "${key} must start with http:// or https:// and contain no spaces: ${value}"
 }
 
-validate_homepage_hosts() {
-  [[ -n "${HOMEPAGE_ALLOWED_HOSTS:-}" ]] || fail "HOMEPAGE_ALLOWED_HOSTS is missing in ${ENV_FILE}"
-  [[ "${HOMEPAGE_ALLOWED_HOSTS}" != "*" ]] || fail "HOMEPAGE_ALLOWED_HOSTS must list the LAN/VPN hostnames instead of *."
-  [[ ! "${HOMEPAGE_ALLOWED_HOSTS}" =~ [[:space:]] ]] || fail "HOMEPAGE_ALLOWED_HOSTS must be comma-separated without spaces."
+validate_hex_secret() {
+  local key="$1"
+  local value="${!key:-}"
+
+  [[ "${value}" =~ ^[[:xdigit:]]{64}$ ]] || fail "${key} must contain exactly 64 hexadecimal characters."
 }
 
 check_data_layout() {
@@ -209,18 +211,59 @@ check_data_layout() {
     fail "Legacy media layout detected; move Downloads to Data/downloads, Sonarr/tvshows to Data/tvshows, and Radarr/movies to Data/movies before starting the updated stack."
   fi
 
-  for path in "${data_paths[@]}" "${common_path_abs}/Homepage/Config"; do
+  for path in \
+    "${data_paths[@]}" \
+    "${common_path_abs}/Homarr/AppData" \
+    "${common_path_abs}/Glances" \
+    "${common_path_abs}/Gluetun/Auth"; do
     [[ -e "${path}" ]] || continue
     [[ -d "${path}" ]] || fail "Expected directory: ${path}"
     [[ "$(stat -c '%u:%g' "${path}" 2>/dev/null)" == "${PUID}:${PGID}" ]] || warn "Unexpected ownership on ${path}; expected ${PUID}:${PGID}."
   done
 
-  for path in settings.yaml services.yaml bookmarks.yaml widgets.yaml; do
-    path="${common_path_abs}/Homepage/Config/${path}"
-    [[ -f "${path}" ]] || continue
-    [[ "$(stat -c '%u:%g' "${path}" 2>/dev/null)" == "${PUID}:${PGID}" ]] || fail "Homepage cannot safely update ${path}; expected owner ${PUID}:${PGID}."
-    find "${path}" -maxdepth 0 -perm -u=w -print -quit | grep -q . || fail "Homepage config is not owner-writable: ${path}"
-  done
+  check_gluetun_auth_config "${common_path_abs}"
+  check_glances_config "${common_path_abs}"
+}
+
+check_glances_config() {
+  local common_path_abs="$1"
+  local config_file="${common_path_abs}/Glances/glances.conf"
+
+  [[ -f "${config_file}" ]] || fail "Missing Glances config: ${config_file}; rerun scripts/setup.sh."
+  [[ "$(stat -c '%u:%g' "${config_file}" 2>/dev/null)" == "${PUID}:${PGID}" ]] || warn "Unexpected Glances config ownership; expected ${PUID}:${PGID}."
+  grep -Fqx '[outputs]' "${config_file}" || fail "Glances config is missing the [outputs] section."
+  grep -Fqx 'webui_allowed_hosts=glances,localhost,127.0.0.1' "${config_file}" || fail "Glances allowed hosts differ from the internal-only allowlist."
+}
+
+check_gluetun_auth_config() {
+  local common_path_abs="$1"
+  local auth_file="${common_path_abs}/Gluetun/Auth/config.toml"
+  local mode
+
+  [[ -f "${auth_file}" ]] || fail "Missing Gluetun auth config: ${auth_file}; rerun scripts/setup.sh."
+  [[ "$(stat -c '%u:%g' "${auth_file}" 2>/dev/null)" == "${PUID}:${PGID}" ]] || fail "Unexpected Gluetun auth config ownership; expected ${PUID}:${PGID}."
+  mode="$(stat -c '%a' "${auth_file}" 2>/dev/null || true)"
+  [[ "${mode}" == "600" ]] || fail "Gluetun auth config must have mode 600: ${auth_file}"
+  grep -Fq 'name = "homarr-read-only"' "${auth_file}" || fail "Gluetun auth config is missing the Homarr read-only role."
+  grep -Fq 'routes = ["GET /v1/vpn/status", "GET /v1/dns/status", "GET /v1/publicip/ip"]' "${auth_file}" || fail "Gluetun auth routes differ from the required read-only allowlist."
+  grep -Fqx "apikey = \"${GLUETUN_CONTROL_API_KEY}\"" "${auth_file}" || fail "Gluetun auth config does not match GLUETUN_CONTROL_API_KEY; rerun scripts/setup.sh."
+}
+
+check_homarr_memory() {
+  local available_kib
+  local minimum_kib=$((500 * 1024))
+
+  [[ -r /proc/meminfo ]] || {
+    warn "Cannot read /proc/meminfo; verify that at least 500 MB is available for Homarr."
+    return
+  }
+
+  available_kib="$(awk '/^MemAvailable:/ {print $2; exit}' /proc/meminfo)"
+  [[ "${available_kib}" =~ ^[0-9]+$ ]] || {
+    warn "Cannot determine available memory; verify that at least 500 MB is available for Homarr."
+    return
+  }
+  (( available_kib >= minimum_kib )) || fail "Homarr requires at least 500 MB available memory; detected $((available_kib / 1024)) MB."
 }
 
 detect_render_gid() {
@@ -241,6 +284,7 @@ apply_env_defaults() {
   JELLYFIN_RENDER_GID="${JELLYFIN_RENDER_GID:-$(detect_render_gid)}"
   LOG_MAX_SIZE="${LOG_MAX_SIZE:-10m}"
   LOG_MAX_FILE="${LOG_MAX_FILE:-3}"
+  HOMARR_BASE_URL="${HOMARR_BASE_URL:-http://localhost:${NGINX_PORT:-8090}}"
 }
 
 check_nas_devices() {
@@ -329,7 +373,9 @@ required=(
   TZ
   PUID
   PGID
-  HOMEPAGE_ALLOWED_HOSTS
+  HOMARR_BASE_URL
+  HOMARR_SECRET_ENCRYPTION_KEY
+  GLUETUN_CONTROL_API_KEY
   WIREGUARD_ADDRESSES
   WIREGUARD_PRIVATE_KEY
   WIREGUARD_PUBLIC_KEY
@@ -354,9 +400,12 @@ validate_integer "PGID"
 validate_integer "JELLYFIN_RENDER_GID"
 validate_port "NGINX_PORT"
 validate_port "JELLYSEERR_PORT"
+validate_http_url "HOMARR_BASE_URL"
 validate_http_url "JELLYSEERR_EXTERNAL_URL"
-validate_homepage_hosts
+validate_hex_secret "HOMARR_SECRET_ENCRYPTION_KEY"
+validate_hex_secret "GLUETUN_CONTROL_API_KEY"
 check_nas_devices
+check_homarr_memory
 
 common_path_abs="$(resolve_path "${COMMON_PATH}")"
 if [[ -e "${common_path_abs}" ]]; then

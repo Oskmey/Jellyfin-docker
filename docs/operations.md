@@ -56,18 +56,6 @@ If you need to repair `.env` formatting or permissions explicitly:
 ./scripts/security-check.sh --fix-env
 ```
 
-Resync Homepage templates:
-```bash
-./scripts/sync-homepage-config.sh
-```
-
-Preview or protect Homepage syncs:
-```bash
-./scripts/sync-homepage-config.sh --dry-run
-./scripts/sync-homepage-config.sh --backup
-./scripts/sync-homepage-config.sh --skip-existing
-```
-
 Proxy health endpoint:
 ```bash
 curl -fsS "http://localhost:${NGINX_PORT:-8090}/health"
@@ -82,8 +70,10 @@ Look for `healthy` on services with healthchecks before treating the stack as re
 
 Security model:
 - qBittorrent is the only service routed through Gluetun/Mullvad.
-- nginx is intended for LAN use; router/NAS firewall rules should keep `NGINX_PORT` non-public.
-- Jellyseerr stays direct on `JELLYSEERR_PORT`.
+- nginx is intended for LAN use. Router or NAS firewall rules should keep `NGINX_PORT` non-public.
+- Seerr stays direct on its configured port.
+- Homarr is public only inside the trusted LAN. Its NAS Control Room board requires credentials.
+- Glances, Docker telemetry, and Gluetun telemetry have no published host ports.
 
 ## Backup basics
 
@@ -94,17 +84,33 @@ Back up service configs before updates and on a regular schedule:
 
 By default, archives are written to `${COMMON_PATH}/Backups` and include only app config folders:
 - `Jellyfin/Config`
-- `Jellyseerr/Config`
+- Seerr application configuration
 - `Sonarr/Config`
 - `Radarr/Config`
 - `Prowlarr/Config`
 - `Qbittorrent/Config`
-- `Homepage/Config`
+- `Homarr/AppData`
+- `Glances/glances.conf`
+- `Gluetun/Auth`
 
 Media libraries and downloads are excluded. To write backups somewhere else:
 ```bash
 ./scripts/backup-configs.sh --output-dir /path/to/backups
 ```
+
+Also create a consistent export from Homarr's built-in backup screen after board or integration changes. Keep `HOMARR_SECRET_ENCRYPTION_KEY` separately. It is required to decrypt restored integration credentials.
+
+Validate an archive before restoring it:
+
+```bash
+./scripts/restore-configs.sh \
+  --archive "${COMMON_PATH}/Backups/media-stack-configs-TIMESTAMP.tar.gz" \
+  --dry-run
+```
+
+Stop the stack before a real restore. The restore command refuses to overwrite non-empty configuration folders unless you pass `--force`. Take a fresh backup before using that option.
+
+The restore command never restores `.env`, the Gluetun API key, media libraries, or downloads.
 
 ## Hardware acceleration checks
 

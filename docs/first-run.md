@@ -9,7 +9,7 @@ Use this order for a clean first setup:
   - Movies: `/data/movies`
 - On Intel TerraMaster systems, enable hardware acceleration after the wizard:
   - Jellyfin Dashboard -> Playback -> Transcoding
-  - Prefer Intel Quick Sync when available; use VA-API as the fallback
+  - Prefer Intel Quick Sync when available. Use VA-API as the fallback.
   - VA-API device: `/dev/dri/renderD128`
   - If transcoding fails, run `./scripts/doctor.sh` and verify `JELLYFIN_RENDER_GID`
 
@@ -17,7 +17,7 @@ Use this order for a clean first setup:
 - URL: `http://<host>:<NGINX_PORT>/qbittorrent/`
 - Log in with the temporary password shown in the qBittorrent container logs, then change it immediately
 - Set default save path to `/data/downloads`
-- Do not expose the qBittorrent WebUI publicly; it should stay reachable only through the LAN nginx route
+- Do not expose the qBittorrent WebUI publicly. It should stay reachable only through the LAN nginx route.
 
 3. Configure Prowlarr
 - URL: `http://<host>:<NGINX_PORT>/prowlarr/`
@@ -54,19 +54,16 @@ Use this order for a clean first setup:
   - API key: Radarr API key
 - Create subtitle language profiles and enable automatic subtitle search
 
-7. Configure Jellyseerr
-- URL: `http://<host>:<JELLYSEERR_PORT>/`
+7. Configure Seerr
+- URL: `http://<host>:5055/` unless you changed the Seerr port in `.env`
 - Connect to Jellyfin, Sonarr, and Radarr using API keys
 
-8. Configure Homepage dashboard
-- URL: `http://<host>:<NGINX_PORT>/homepage/`
-- The repo ships a default dashboard grouped into `Media`, `Media Tools`, and `Tools`
-- `./scripts/setup.sh` syncs those templates into `${COMMON_PATH}/Homepage/Config`
-- If you pull newer dashboard templates later, rerun:
-```bash
-./scripts/sync-homepage-config.sh
-```
-- Refresh Homepage with the button in the bottom-right corner after changing `settings.yaml`
+8. Configure Homarr
+- URL: `http://<host>:<NGINX_PORT>/`
+- Create the owner account and keep the NAS Control Room board private
+- Create the public Home Cinema board and connect the internal integrations
+- Apply the exact board, privacy, responsive-layout, and appearance recipe in [`homarr.md`](homarr.md)
+- Export a Homarr backup after configuration and store the encryption key separately
 
 9. Install Jellyfin Intro Skipper plugin
 - In Jellyfin: Dashboard -> Plugins -> Catalog -> install `Intro Skipper`
