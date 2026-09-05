@@ -229,7 +229,7 @@ assert_no_published_ports() {
   local container_id="$2"
   local bindings
 
-  bindings="$("${DOCKER_BIN}" inspect --format '{{range $bindings := .NetworkSettings.Ports}}{{range $bindings}}{{println .HostIp .HostPort}}{{end}}{{end}}' "${container_id}")"
+  bindings="$("${DOCKER_BIN}" inspect --format '{{range .NetworkSettings.Ports}}{{range .}}{{println .HostIp .HostPort}}{{end}}{{end}}' "${container_id}")"
   [[ -z "${bindings}" ]] || fail "${label} unexpectedly publishes a host port: ${bindings}"
   log_ok "${label} has no published host ports."
 }
@@ -292,6 +292,7 @@ check_gluetun_control_policy() {
     fail "Gluetun telemetry endpoint permits unauthenticated access."
   fi
 
+  # shellcheck disable=SC2016  # Expanded by the shell inside the container.
   "${DOCKER_BIN}" exec -e "SECURITY_CHECK_API_KEY=${GLUETUN_CONTROL_API_KEY}" "${gluetun_id}" sh -c \
     'wget -qO- --header "X-API-Key: ${SECURITY_CHECK_API_KEY}" http://127.0.0.1:8000/v1/vpn/status >/dev/null' || \
     fail "Authenticated Gluetun VPN telemetry request failed."
