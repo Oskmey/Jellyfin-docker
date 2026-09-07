@@ -22,6 +22,8 @@ Checks:
   - authenticated, read-only Gluetun telemetry configuration
   - Gluetun health
   - qBittorrent network namespace sharing with Gluetun
+  - qBittorrent TCP/UDP binding to the Gluetun tunnel
+  - qBittorrent DHT availability when its local API is accessible
   - Mullvad egress from Gluetun and qBittorrent
   - direct egress from Sonarr
 
@@ -318,6 +320,130 @@ json_field() {
   printf '%s\n' "${json}" | sed -n "s/.*\"${field}\":\"\\([^\"]*\\)\".*/\\1/p"
 }
 
+json_boolean_field() {
+  local json="$1"
+  local field="$2"
+  printf '%s\n' "${json}" | sed -n "s/.*\"${field}\":\\(true\\|false\\).*/\\1/p"
+}
+
+json_number_field() {
+  local json="$1"
+  local field="$2"
+  printf '%s\n' "${json}" | sed -n "s/.*\"${field}\":\\([0-9][0-9]*\\).*/\\1/p"
+}
+
+fetch_qbittorrent_api_json() {
+  local container_id="$1"
+  local api_path="$2"
+
+  # shellcheck disable=SC2016  # Expanded by the shell inside the container.
+  "${DOCKER_BIN}" exec "${container_id}" sh -c '
+    url="$1"
+    if command -v curl >/dev/null 2>&1; then
+      curl -fsS --max-time 5 "${url}"
+    elif command -v wget >/dev/null 2>&1; then
+      wget -qO- -T 5 "${url}"
+    else
+      exit 127
+    fi
+  ' sh "http://127.0.0.1:8080/api/v2/${api_path}"
+}
+
+qbittorrent_recovery_hint() {
+  cat >&2 <<EOF
+In qBittorrent, open Settings -> Advanced and set:
+  Network Interface: tun0
+  Optional IP address to bind to: All IPv4 addresses
+Keep DHT and PeX enabled, apply the settings, then run:
+  ${COMPOSE_CMD_DISPLAY} restart qbittorrent
+EOF
+}
+
+check_qbittorrent_tunnel_binding() {
+  local gluetun_id="$1"
+  local qbittorrent_id="$2"
+  local listen_port
+  local listeners
+  local tunnel_endpoint
+  local tunnel_ipv4
+
+  tunnel_ipv4="$(
+    "${DOCKER_BIN}" exec "${gluetun_id}" ip -4 -o address show dev tun0 2>/dev/null |
+      awk '$3 == "inet" {sub(/\/.*/, "", $4); print $4; exit}'
+  )"
+  [[ -n "${tunnel_ipv4}" ]] || fail "Gluetun has no IPv4 address on tun0."
+
+  listen_port="$(
+    # shellcheck disable=SC2016  # Evaluated by awk inside the container.
+    "${DOCKER_BIN}" exec "${qbittorrent_id}" awk -F= '
+      $1 == "Session\\Port" {session_port = $2}
+      $1 == "Connection\\PortRangeMin" {fallback_port = $2}
+      END {
+        if (session_port != "") print session_port
+        else print fallback_port
+      }
+    ' /config/qBittorrent/qBittorrent.conf 2>/dev/null
+  )"
+  [[ "${listen_port}" =~ ^[0-9]+$ ]] || fail "Cannot determine qBittorrent's listening port."
+
+  listeners="$("${DOCKER_BIN}" exec "${qbittorrent_id}" sh -c '
+    if command -v netstat >/dev/null 2>&1; then
+      netstat -lntu
+    elif command -v ss >/dev/null 2>&1; then
+      ss -lntu
+    else
+      exit 127
+    fi
+  ')" || fail "qBittorrent has no netstat or ss command for listener verification."
+  tunnel_endpoint="${tunnel_ipv4}:${listen_port}"
+
+  if ! awk -v endpoint="${tunnel_endpoint}" '
+    $1 ~ /^tcp/ && index($0, endpoint) {tcp_bound = 1}
+    $1 ~ /^udp/ && index($0, endpoint) {udp_bound = 1}
+    END {exit !(tcp_bound && udp_bound)}
+  ' <<< "${listeners}"; then
+    qbittorrent_recovery_hint
+    fail "qBittorrent is not listening on tun0 at ${tunnel_endpoint} for both TCP and UDP."
+  fi
+
+  log_ok "qBittorrent listens on tun0 at ${tunnel_endpoint} over TCP and UDP."
+}
+
+check_qbittorrent_dht() {
+  local qbittorrent_id="$1"
+  local dht_enabled
+  local dht_nodes
+  local preferences_json
+  local transfer_json
+  local attempt
+
+  if ! preferences_json="$(fetch_qbittorrent_api_json "${qbittorrent_id}" "app/preferences" 2>/dev/null)"; then
+    warn "Cannot query the local qBittorrent API; skipped DHT verification after the tunnel listener passed."
+    return
+  fi
+
+  dht_enabled="$(json_boolean_field "${preferences_json}" "dht")"
+  if [[ "${dht_enabled}" != "true" ]]; then
+    qbittorrent_recovery_hint
+    fail "qBittorrent DHT is disabled or its state could not be determined."
+  fi
+
+  for attempt in {0..12}; do
+    transfer_json="$(fetch_qbittorrent_api_json "${qbittorrent_id}" "transfer/info" 2>/dev/null || true)"
+    dht_nodes="$(json_number_field "${transfer_json}" "dht_nodes")"
+    if [[ "${dht_nodes}" =~ ^[0-9]+$ ]] && (( dht_nodes > 0 )); then
+      log_ok "qBittorrent DHT has ${dht_nodes} connected nodes."
+      return
+    fi
+    if (( attempt < 12 )); then
+      sleep 5
+    fi
+  done
+
+  qbittorrent_recovery_hint
+  fail "qBittorrent DHT remained at zero connected nodes for 60 seconds."
+}
+
 expect_mullvad_status() {
   local label="$1"
   local container_id="$2"
@@ -461,6 +587,8 @@ log_ok "nginx syntax validation passed."
 expect_mullvad_status "Gluetun" "${gluetun_id}" "true"
 expect_mullvad_status "qBittorrent" "${qbittorrent_id}" "true"
 expect_mullvad_status "Sonarr" "${sonarr_id}" "false"
+check_qbittorrent_tunnel_binding "${gluetun_id}" "${qbittorrent_id}"
+check_qbittorrent_dht "${qbittorrent_id}"
 
 expect_route_ok "/health"
 expect_route_ok "/"

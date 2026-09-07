@@ -66,6 +66,46 @@ Fix:
 docker compose logs -f gluetun
 ```
 
+## qBittorrent is stuck at Downloading metadata
+
+First determine the scope:
+- if only one magnet is affected, its swarm or tracker list may be unavailable
+- if every magnet is affected, check the VPN listener and DHT before changing trackers or download paths
+
+Run the read-only runtime checks:
+```bash
+./scripts/security-check.sh
+```
+
+If the script reports that qBittorrent is not listening on `tun0`, or that DHT remains at zero nodes:
+
+1. Back up the application configs:
+   ```bash
+   ./scripts/backup-configs.sh
+   ```
+2. In qBittorrent, open Settings -> Advanced.
+3. Set **Network Interface** to `tun0`.
+4. Set **Optional IP address to bind to** to `All IPv4 addresses`.
+5. Keep DHT and PeX enabled, then apply the settings.
+6. Restart only qBittorrent:
+   ```bash
+   docker compose restart qbittorrent
+   ```
+7. Run `./scripts/security-check.sh` again. It should report TCP and UDP listeners on the current `tun0` address and a nonzero DHT node count.
+
+Gluetun can rebuild its VPN connection after a failed healthcheck while the qBittorrent container keeps running. If qBittorrent does not rebind to the recreated tunnel, its WebUI can remain healthy even though magnet discovery is broken. Tracker messages such as `Operation not permitted` and timeouts can be consequences of the unavailable VPN path.
+
+Use the current magnet from the [official Arch Linux download page](https://archlinux.org/download/) as a legal, well-seeded control. Let it retrieve metadata, then pause and remove it before downloading the ISO.
+
+- if the Arch magnet retrieves metadata, the original magnet has a dead or unavailable swarm; do not reset qBittorrent
+- if the Arch magnet also fails while the script confirms a valid `tun0` listener and DHT remains at zero, collect qBittorrent and Gluetun logs before changing images or deleting configuration
+
+References:
+
+- [qBittorrent VPN binding guidance](https://github.com/qbittorrent/qBittorrent/wiki/How-to-bind-your-vpn-to-prevent-ip-leaks)
+- [qBittorrent IPv4-only VPN binding issue](https://github.com/qbittorrent/qBittorrent/issues/24854)
+- [Gluetun healthcheck and internal VPN recovery](https://github.com/qdm12/gluetun-wiki/blob/main/faq/healthcheck.md)
+
 ## qBittorrent WebUI login is unknown
 
 Cause:

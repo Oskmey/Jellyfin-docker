@@ -17,6 +17,10 @@ Use this order for a clean first setup:
 - URL: `http://<host>:<NGINX_PORT>/qbittorrent/`
 - Log in with the temporary password shown in the qBittorrent container logs, then change it immediately
 - Set default save path to `/data/downloads`
+- In Settings -> Advanced, set **Network Interface** to `tun0`
+- Set **Optional IP address to bind to** to `All IPv4 addresses`
+- Keep DHT and PeX enabled, apply the settings, and restart only qBittorrent
+- Run `./scripts/security-check.sh` and confirm qBittorrent has TCP and UDP listeners on `tun0` and a nonzero DHT node count
 - Do not expose the qBittorrent WebUI publicly. It should stay reachable only through the LAN nginx route.
 
 3. Configure Prowlarr
