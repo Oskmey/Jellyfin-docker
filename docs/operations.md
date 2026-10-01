@@ -40,7 +40,7 @@ Docker JSON logs are rotated by the stack defaults:
 - `LOG_MAX_SIZE=10m`
 - `LOG_MAX_FILE=3`
 
-nginx access logs use a sanitized format that records the path without query strings. This avoids storing sensitive playback or API query parameters in `nginx/logs/access.log`.
+nginx access logs use a sanitized format that records the path without query strings. View them with `docker compose logs nginx-proxy`; Docker applies the rotation settings above.
 
 ## Health and preflight
 

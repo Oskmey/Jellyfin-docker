@@ -92,7 +92,7 @@ services:
       - media
     environment:
       <<: *linuxserver_env
-      URL_BASE: /sonarr
+      SONARR__SERVER__URLBASE: /sonarr
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8989/sonarr || exit 1"]
       <<: *http_healthcheck_defaults
@@ -109,7 +109,7 @@ services:
       - media
     environment:
       <<: *linuxserver_env
-      URL_BASE: /radarr
+      RADARR__SERVER__URLBASE: /radarr
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:7878/radarr || exit 1"]
       <<: *http_healthcheck_defaults
@@ -127,7 +127,7 @@ services:
     dns: *service_dns
     environment:
       <<: *linuxserver_env
-      URL_BASE: /prowlarr
+      PROWLARR__SERVER__URLBASE: /prowlarr
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:9696/prowlarr || exit 1"]
       <<: *http_healthcheck_defaults
@@ -143,7 +143,7 @@ services:
       - media
     environment:
       <<: *linuxserver_env
-      URL_BASE: /bazarr
+      DYNACONF_GENERAL__BASE_URL: /bazarr
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:6767/bazarr || exit 1"]
       <<: *http_healthcheck_defaults
@@ -315,4 +315,3 @@ services:
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ./nginx/assets:/asset-source:ro
-      - ./nginx/logs:/var/log/nginx

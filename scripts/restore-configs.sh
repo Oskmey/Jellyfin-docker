@@ -103,6 +103,17 @@ set +a
 common_path_abs="$(resolve_path "${COMMON_PATH}")"
 [[ -d "${common_path_abs}" ]] || fail "COMMON_PATH does not exist: ${common_path_abs}"
 
+archive_listing="$(tar -tzf "${ARCHIVE}")" || fail "Failed to list backup archive; it may be truncated or corrupt."
+archive_types="$(LC_ALL=C tar -tvzf "${ARCHIVE}")" || fail "Failed to inspect backup archive member types."
+while IFS= read -r entry; do
+  [[ -n "${entry}" ]] || continue
+  case "${entry:0:1}" in
+    -|d) ;;
+    l) fail "Archive contains symbolic links; restore aborted." ;;
+    *) fail "Archive contains unsupported member types; only regular files and directories are allowed." ;;
+  esac
+done <<< "${archive_types}"
+
 archive_entries=()
 while IFS= read -r entry; do
   [[ -n "${entry}" ]] || continue
@@ -110,7 +121,7 @@ while IFS= read -r entry; do
   [[ ! "/${entry}/" =~ /\.\.?/ ]] || fail "Archive contains path traversal: ${entry}"
   path_is_allowed "${entry}" || fail "Archive contains a path outside the configuration allowlist: ${entry}"
   archive_entries+=("${entry}")
-done < <(tar -tzf "${ARCHIVE}")
+done <<< "${archive_listing}"
 
 [[ "${#archive_entries[@]}" -gt 0 ]] || fail "Archive is empty."
 
@@ -152,10 +163,9 @@ if find "${stage_dir}" -type l -print -quit | grep -q .; then
   fail "Archive contains symbolic links; restore aborted."
 fi
 find "${stage_dir}" -type f -perm /6000 -exec chmod a-s {} +
-cp -a "${stage_dir}/." "${common_path_abs}/"
-
 for service_root in Jellyfin Jellyseerr Sonarr Radarr Prowlarr Bazarr Qbittorrent Homarr Glances Homepage; do
   [[ -d "${stage_dir}/${service_root}" ]] || continue
+  cp -a "${stage_dir}/${service_root}" "${common_path_abs}/"
   chown "${PUID}:${PGID}" "${common_path_abs}/${service_root}" || fail "Failed to set ownership on restored ${service_root} root."
   chmod 0750 "${common_path_abs}/${service_root}" || fail "Failed to restrict restored ${service_root} root permissions."
 done
