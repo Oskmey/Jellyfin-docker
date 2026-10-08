@@ -92,7 +92,15 @@ EOF
 
   (
     cd "${REPO_ROOT}"
-    docker compose --env-file "${CI_ENV_FILE}" -f docker-compose.yml config >/dev/null
+    local rendered_config
+    rendered_config="$(docker compose --env-file "${CI_ENV_FILE}" -f docker-compose.yml config)"
+    grep -Eq '^[[:space:]]+WIREGUARD_PRIVATE_KEY: .+' <<< "${rendered_config}" ||
+      fail "Compose does not pass the Mullvad private key to Gluetun."
+    # Change only the disposable fixture: a missing VPN key must fail preflight.
+    sed -i '/^WIREGUARD_PRIVATE_KEY=/d' "${CI_ENV_FILE}"
+    if env -u WIREGUARD_PRIVATE_KEY docker compose --env-file "${CI_ENV_FILE}" -f docker-compose.yml config --quiet >/dev/null 2>&1; then
+      fail "Compose accepted a missing Mullvad WireGuard private key."
+    fi
   )
 }
 
@@ -427,7 +435,7 @@ test_security_helpers() {
     # shellcheck disable=SC1090
     source "${helpers}"
     REPO_ROOT="${expected_repo}"
-    # shellcheck disable=SC2329 # Called indirectly through COMPOSE_CMD.
+    # shellcheck disable=SC2317,SC2329 # Called indirectly through COMPOSE_CMD.
     compose_stub() {
       [[ "${PWD}" == "${expected_repo}" ]] || return 1
       printf '%s\n' fixture-container
@@ -437,7 +445,7 @@ test_security_helpers() {
     cd "${TEST_ROOT}"
     [[ "$(get_service_container sonarr)" == fixture-container ]] || fail "Diagnostics resolved Compose from the caller directory."
 
-    # shellcheck disable=SC2329 # Called by the sourced HTTP probe.
+    # shellcheck disable=SC2317,SC2329 # Called by the sourced HTTP probe.
     curl() {
       [[ "$*" == *'--connect-timeout 5'* && "$*" == *'--max-time 15'* ]] || fail "HTTP probe has no timeout."
       printf '%s' 000
@@ -445,7 +453,7 @@ test_security_helpers() {
     }
     if http_status http://example.invalid >/dev/null; then fail "HTTP probe swallowed a transport failure."; fi
 
-    # shellcheck disable=SC2329 # Called indirectly through DOCKER_BIN.
+    # shellcheck disable=SC2317,SC2329 # Called indirectly through DOCKER_BIN.
     fake_docker() {
       if [[ "$1" == inspect ]]; then
         printf '%s\n' POST=0 CONTAINERS=1 INFO=1 PING=1 VERSION=1
