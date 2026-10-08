@@ -3,7 +3,8 @@
 Use this order for a clean first setup:
 
 1. Open Jellyfin and complete admin wizard
-- URL: `http://<host>:<NGINX_PORT>/jellyfin/`
+- Wizard URL: `http://<host>:<NGINX_PORT>/jellyfin/web/index.html`
+- Leave Jellyfin's **Networking -> Base URL** empty. nginx strips `/jellyfin/` before forwarding; internal integrations use the root URL. Setting `/jellyfin` in the app requires a coordinated proxy migration and is not part of this setup.
 - Add libraries:
   - TV: `/data/tvshows`
   - Movies: `/data/movies`
@@ -29,10 +30,13 @@ Use this order for a clean first setup:
 - Add applications:
   - Sonarr: `http://sonarr:8989/sonarr`
   - Radarr: `http://radarr:7878/radarr`
+- Set the Prowlarr server URL used by those applications to `http://prowlarr:9696/prowlarr`.
+- For indexers that need Cloudflare assistance, add an indexer proxy at `http://flaresolverr:8191`, then assign the same tag to the proxy and affected indexers. An untagged FlareSolverr proxy is disabled. See [Prowlarr proxy settings](https://wiki.servarr.com/prowlarr/settings).
 
 4. Configure Sonarr
 - URL: `http://<host>:<NGINX_PORT>/sonarr/`
 - Root folder: `/data/tvshows`
+- Enable **Use Hardlinks instead of Copy** in advanced Media Management when the host download/library folders share one filesystem.
 - Download client:
   - qBittorrent host: `gluetun`
   - Port: `8080`
@@ -42,6 +46,7 @@ Use this order for a clean first setup:
 5. Configure Radarr
 - URL: `http://<host>:<NGINX_PORT>/radarr/`
 - Root folder: `/data/movies`
+- Enable **Use Hardlinks instead of Copy** under the same filesystem condition.
 - Download client:
   - qBittorrent host: `gluetun`
   - Port: `8080`
@@ -60,7 +65,8 @@ Use this order for a clean first setup:
 
 7. Configure Seerr
 - URL: `http://<host>:5055/` unless you changed the Seerr port in `.env`
-- Connect to Jellyfin, Sonarr, and Radarr using API keys
+- Connect to Jellyfin at `http://jellyfin:8096`, Sonarr at `http://sonarr:8989/sonarr`, and Radarr at `http://radarr:7878/radarr`, using the credentials/API keys each integration requests.
+- Seerr runs as `PUID:PGID`; existing config files must be writable by that identity. Setup reuses existing folders without automatically changing their ownership.
 
 8. Configure Homarr
 - URL: `http://<host>:<NGINX_PORT>/`
@@ -70,7 +76,7 @@ Use this order for a clean first setup:
 - Export a Homarr backup after configuration and store the encryption key separately
 
 9. Install Jellyfin Intro Skipper plugin
-- In Jellyfin: Dashboard -> Plugins -> Catalog -> install `Intro Skipper`
+- Install a stable Intro Skipper release compatible with your Jellyfin major version; follow the compatibility gate in [`updating.md`](updating.md).
 - Restart Jellyfin after install
 - Run the intro detection scheduled task in Jellyfin (Dashboard -> Scheduled Tasks)
 

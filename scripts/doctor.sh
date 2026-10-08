@@ -171,6 +171,11 @@ validate_http_url() {
   local value="${!key:-}"
 
   [[ -n "${value}" ]] || return 0
+  if [[ "${key}" == HOMARR_BASE_URL ]]; then
+    [[ "${value}" =~ ^https?://[^/?#@[:space:]]+/?$ && "${value}" != *\\* ]] ||
+      fail "HOMARR_BASE_URL must be an http:// or https:// origin, optionally ending in /, without credentials, a path, query, or fragment."
+    return 0
+  fi
   [[ "${value}" =~ ^https?://[^[:space:]]+$ ]] || fail "${key} must start with http:// or https:// and contain no spaces: ${value}"
 }
 
@@ -266,22 +271,27 @@ check_homarr_memory() {
   (( available_kib >= minimum_kib )) || fail "Homarr requires at least 500 MB available memory; detected $((available_kib / 1024)) MB."
 }
 
-detect_render_gid() {
-  if command -v getent >/dev/null 2>&1 && getent group render >/dev/null 2>&1; then
-    getent group render | awk -F: '{print $3}'
-    return
-  fi
-
+check_render_gid() {
+  local device_gid
+  local named_gid=""
   if [[ -e /dev/dri/renderD128 ]]; then
-    stat -c '%g' /dev/dri/renderD128 2>/dev/null && return
+    device_gid="$(stat -c '%g' /dev/dri/renderD128 2>/dev/null)" || return 0
+    [[ "${JELLYFIN_RENDER_GID}" == "${device_gid}" ]] ||
+      warn "JELLYFIN_RENDER_GID (${JELLYFIN_RENDER_GID}) differs from renderD128 (${device_gid}); update the env file and recreate Jellyfin."
+    if command -v getent >/dev/null 2>&1; then
+      named_gid="$(getent group render | awk -F: '{print $3}' || true)"
+    fi
+    if [[ -n "${named_gid}" && "${named_gid}" != "${device_gid}" ]]; then
+      warn "The render group GID (${named_gid}) differs from renderD128 (${device_gid}); use the device GID."
+    fi
   fi
-
-  printf '109'
+  return 0
 }
 
 apply_env_defaults() {
   BIND_IP="${BIND_IP:-0.0.0.0}"
-  JELLYFIN_RENDER_GID="${JELLYFIN_RENDER_GID:-$(detect_render_gid)}"
+  WIREGUARD_ALLOWED_IPS="${WIREGUARD_ALLOWED_IPS:-0.0.0.0/0}"
+  JELLYFIN_RENDER_GID="${JELLYFIN_RENDER_GID:-109}"
   LOG_MAX_SIZE="${LOG_MAX_SIZE:-10m}"
   LOG_MAX_FILE="${LOG_MAX_FILE:-3}"
   HOMARR_BASE_URL="${HOMARR_BASE_URL:-http://localhost:${NGINX_PORT:-8090}}"
@@ -378,8 +388,6 @@ required=(
   GLUETUN_CONTROL_API_KEY
   WIREGUARD_ADDRESSES
   WIREGUARD_PRIVATE_KEY
-  WIREGUARD_PUBLIC_KEY
-  WIREGUARD_ENDPOINT
   WIREGUARD_ALLOWED_IPS
 )
 
@@ -405,6 +413,7 @@ validate_http_url "JELLYSEERR_EXTERNAL_URL"
 validate_hex_secret "HOMARR_SECRET_ENCRYPTION_KEY"
 validate_hex_secret "GLUETUN_CONTROL_API_KEY"
 check_nas_devices
+check_render_gid
 check_homarr_memory
 
 common_path_abs="$(resolve_path "${COMMON_PATH}")"

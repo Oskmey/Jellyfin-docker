@@ -34,6 +34,7 @@ It includes:
 This generates `.env`, creates only missing data and configuration folders, creates the restricted Gluetun telemetry policy, and validates your Compose config.
 
 3. Start the stack
+For an existing installation, follow [`docs/updating.md`](docs/updating.md) before starting with the revised Compose file.
 ```bash
 docker compose up -d
 ```
@@ -53,19 +54,20 @@ Follow [`docs/first-run.md`](docs/first-run.md).
 
 ## Configuration
 
-Copy and edit `.env.example` manually if you do not use setup script:
+To fill in settings manually, copy and edit `.env.example`, then run setup without prompts:
 ```bash
 cp .env.example .env
+# Edit .env before continuing.
+./scripts/setup.sh --non-interactive --env-file .env
 ```
+Setup creates the required folders, Gluetun/Glances files, and missing secrets; copying `.env` alone is insufficient.
 
 Required values:
 - `COMMON_PATH`
 - `TZ`, `PUID`, `PGID`
 - `WIREGUARD_ADDRESSES`
 - `WIREGUARD_PRIVATE_KEY`
-- `WIREGUARD_PUBLIC_KEY`
-- `WIREGUARD_ENDPOINT`
-- `WIREGUARD_ALLOWED_IPS`
+- `HOMARR_BASE_URL` (the browser-facing origin, for example `http://nas.local:8090`, without a path)
 - `HOMARR_SECRET_ENCRYPTION_KEY` (setup generates a 64-character hexadecimal key)
 - `GLUETUN_CONTROL_API_KEY` (setup generates this)
 
@@ -73,18 +75,19 @@ Optional values:
 - `BIND_IP` defaults to `0.0.0.0`. Use `127.0.0.1` for localhost-only testing.
 - `NGINX_PORT` (default `8090`)
 - Seerr port, which defaults to `5055`
-- `JELLYFIN_RENDER_GID` defaults to `109`. Setup tries to detect the host `render` group.
+- `JELLYFIN_RENDER_GID` defaults to `109`. Setup first checks the render device's numeric group, then the host `render` group.
 - `LOG_MAX_SIZE` / `LOG_MAX_FILE` (Docker JSON log rotation defaults)
-- `HOMARR_BASE_URL` (the browser-facing nginx URL)
 - Browser-facing Seerr URL for the Homarr application card
 - `SERVER_COUNTRIES` (default `Sweden`)
+- `WIREGUARD_ALLOWED_IPS` (default `0.0.0.0/0` for the IPv4 tunnel)
 
 ## Common Commands
 
 Start:
 ```bash
-docker compose up -d
+docker compose up -d --pull never
 ```
+This uses locally available images. Follow the update guide before pulling new images; the initial setup command above can fetch missing images.
 
 Stop:
 ```bash
@@ -120,7 +123,7 @@ Back up app configs only:
 
 Validate a backup before restoring it:
 ```bash
-./scripts/restore-configs.sh --archive /path/to/media-stack-configs-TIMESTAMP.tar.gz --dry-run
+./scripts/restore-configs.sh --archive /path/to/media-stack-configs-TIMESTAMP.SUFFIX.tar.gz --dry-run
 ```
 
 ## Documentation
@@ -136,9 +139,7 @@ Validate a backup before restoring it:
 
 - `docker-compose.yml`: stack definition
 - `.env.example`: config template
-- `homepage/`: legacy Homepage templates kept only for rollback compatibility
 - `scripts/setup.sh`: interactive setup + env generation
-- `scripts/sync-homepage-config.sh`: legacy rollback helper that normal setup does not use
 - `scripts/doctor.sh`: read-only environment and compose validation by default (`--fix-env` is opt-in)
 - `scripts/security-check.sh`: read-only VPN and local routing verification by default (`--fix-env` is opt-in)
 - `scripts/backup-configs.sh`: config-only backup archives under `${COMMON_PATH}/Backups`
@@ -153,8 +154,10 @@ Validate a backup before restoring it:
 - qBittorrent's WebUI password should be changed during first-run setup and should not be exposed publicly.
 - Jellyfin is prepared for Intel Quick Sync and VA-API by mounting `/dev/dri` and adding `JELLYFIN_RENDER_GID`. Verify the device exists on TerraMaster before enabling hardware acceleration in Jellyfin.
 - Core services now include healthchecks to make restarts and cold starts more predictable.
+- All 13 images deliberately use literal `:latest` tags. Updates are manual and staged per service; follow [`docs/updating.md`](docs/updating.md) before pulling images or migrating data.
 - Docker JSON logs are rotated by default to reduce slow NAS disk growth.
 - Homarr never receives the Docker socket directly. Container statistics pass through an internal read-only proxy with write methods disabled.
+- Docker inspection can still reveal container environment secrets to the trusted Homarr administrator; keep this integration private.
 - Homarr, Glances, the Docker socket proxy, and Gluetun telemetry are internal. nginx is the only Homarr entrypoint.
 - nginx is intended for LAN use. Keep `BIND_IP` and `NGINX_PORT` behind your router or NAS firewall and do not forward it publicly.
 - Seerr stays direct on its configured port. Do not forward that port publicly.

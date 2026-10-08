@@ -97,7 +97,10 @@ detect_compose_command() {
 }
 
 run_compose() {
-  "${COMPOSE_CMD[@]}" "$@"
+  (
+    cd "${REPO_ROOT}"
+    "${COMPOSE_CMD[@]}" "$@"
+  )
 }
 
 warn() {
@@ -190,6 +193,7 @@ detect_render_gid() {
 
 apply_env_defaults() {
   BIND_IP="${BIND_IP:-0.0.0.0}"
+  WIREGUARD_ALLOWED_IPS="${WIREGUARD_ALLOWED_IPS:-0.0.0.0/0}"
   JELLYFIN_RENDER_GID="${JELLYFIN_RENDER_GID:-$(detect_render_gid)}"
   LOG_MAX_SIZE="${LOG_MAX_SIZE:-10m}"
   LOG_MAX_FILE="${LOG_MAX_FILE:-3}"
@@ -270,33 +274,43 @@ check_docker_proxy_policy() {
   local homarr_id="$1"
   local proxy_id="$2"
   local status
+  local option
+  local endpoint
 
   assert_container_env "${proxy_id}" "POST=0"
   assert_container_env "${proxy_id}" "CONTAINERS=1"
   assert_container_env "${proxy_id}" "INFO=1"
   assert_container_env "${proxy_id}" "PING=1"
   assert_container_env "${proxy_id}" "VERSION=1"
+  for option in ARCHIVE CHANGES EXPORT LOGS TOP PAUSE UNPAUSE START STOP RESTARTS; do
+    assert_container_env "${proxy_id}" "ALLOW_${option}=0"
+  done
 
   "${DOCKER_BIN}" exec "${homarr_id}" node -e \
-    "fetch('http://docker-socket-proxy:2375/_ping').then(async r=>process.exit(r.ok&&(await r.text()).trim()==='OK'?0:1)).catch(()=>process.exit(1))" || \
+    "fetch('http://docker-socket-proxy:2375/_ping',{signal:AbortSignal.timeout(10000)}).then(async r=>process.exit(r.ok&&(await r.text()).trim()==='OK'?0:1)).catch(()=>process.exit(1))" || \
     fail "Homarr cannot read the Docker proxy health endpoint."
 
   status="$("${DOCKER_BIN}" exec "${homarr_id}" node -e \
-    "fetch('http://docker-socket-proxy:2375/containers/security-check-does-not-exist/start',{method:'POST'}).then(r=>console.log(r.status)).catch(()=>process.exit(1))")"
+    "fetch('http://docker-socket-proxy:2375/containers/security-check-does-not-exist/start',{method:'POST',signal:AbortSignal.timeout(10000)}).then(r=>console.log(r.status)).catch(()=>process.exit(1))")" || fail "Docker proxy POST probe failed."
   [[ "${status}" == "403" ]] || fail "Docker proxy accepted or mishandled a POST request (status ${status:-unknown})."
+  for endpoint in archive changes export logs top; do
+    status="$("${DOCKER_BIN}" exec "${homarr_id}" node -e \
+      "fetch('http://docker-socket-proxy:2375/containers/security-check-does-not-exist/${endpoint}',{signal:AbortSignal.timeout(10000)}).then(r=>console.log(r.status)).catch(()=>process.exit(1))")" || fail "Docker proxy ${endpoint} probe failed."
+    [[ "${status}" == "403" ]] || fail "Docker proxy permits or mishandles ${endpoint} reads (status ${status:-unknown})."
+  done
   log_ok "Docker proxy permits telemetry GETs and rejects container-control POSTs."
 }
 
 check_gluetun_control_policy() {
   local gluetun_id="$1"
 
-  if "${DOCKER_BIN}" exec "${gluetun_id}" wget -qO- http://127.0.0.1:8000/v1/vpn/status >/dev/null 2>&1; then
+  if "${DOCKER_BIN}" exec "${gluetun_id}" wget -qO- -T 10 http://127.0.0.1:8000/v1/vpn/status >/dev/null 2>&1; then
     fail "Gluetun telemetry endpoint permits unauthenticated access."
   fi
 
   # shellcheck disable=SC2016  # Expanded by the shell inside the container.
   "${DOCKER_BIN}" exec -e "SECURITY_CHECK_API_KEY=${GLUETUN_CONTROL_API_KEY}" "${gluetun_id}" sh -c \
-    'wget -qO- --header "X-API-Key: ${SECURITY_CHECK_API_KEY}" http://127.0.0.1:8000/v1/vpn/status >/dev/null' || \
+    'wget -qO- -T 10 --header "X-API-Key: ${SECURITY_CHECK_API_KEY}" http://127.0.0.1:8000/v1/vpn/status >/dev/null' || \
     fail "Authenticated Gluetun VPN telemetry request failed."
   log_ok "Gluetun telemetry requires the configured API key."
 }
@@ -305,9 +319,9 @@ fetch_container_json() {
   local container_id="$1"
   "${DOCKER_BIN}" exec "${container_id}" sh -lc '
     if command -v curl >/dev/null 2>&1; then
-      curl -fsS https://am.i.mullvad.net/json
+      curl -fsS --connect-timeout 5 --max-time 15 https://am.i.mullvad.net/json
     elif command -v wget >/dev/null 2>&1; then
-      wget -qO- https://am.i.mullvad.net/json
+      wget -qO- -T 15 https://am.i.mullvad.net/json
     else
       exit 127
     fi
@@ -340,7 +354,7 @@ fetch_qbittorrent_api_json() {
   "${DOCKER_BIN}" exec "${container_id}" sh -c '
     url="$1"
     if command -v curl >/dev/null 2>&1; then
-      curl -fsS --max-time 5 "${url}"
+      curl -fsS --connect-timeout 5 --max-time 10 "${url}"
     elif command -v wget >/dev/null 2>&1; then
       wget -qO- -T 5 "${url}"
     else
@@ -467,8 +481,8 @@ http_status() {
   local url="$1"
 
   if command -v curl >/dev/null 2>&1; then
-    curl -sS -o /dev/null -w '%{http_code}' "${url}"
-    return 0
+    curl -sS --connect-timeout 5 --max-time 15 -o /dev/null -w '%{http_code}' "${url}"
+    return "$?"
   fi
 
   if command -v python3 >/dev/null 2>&1; then
@@ -484,7 +498,7 @@ try:
 except urllib.error.HTTPError as exc:
     print(exc.code)
 PY
-    return 0
+    return "$?"
   fi
 
   fail "curl or python3 is required to probe nginx routes."
@@ -494,7 +508,7 @@ expect_route_ok() {
   local path="$1"
   local status
 
-  status="$(http_status "http://${ROUTE_CHECK_HOST}:${NGINX_PORT:-8090}${path}")"
+  status="$(http_status "http://${ROUTE_CHECK_HOST}:${NGINX_PORT:-8090}${path}")" || fail "Route ${path} transport probe failed."
   case "${status}" in
     200|204|301|302|307|308)
       log_ok "Route ${path} responds locally with ${status}."

@@ -26,7 +26,7 @@ docker compose logs -f <service>
 
 Notes:
 - Immediately after startup, wait for healthchecks to settle before assuming a persistent proxy issue.
-- `docker compose ps` should show `healthy` for the services that nginx or Seerr depend on.
+- `docker compose ps` should show `healthy` for the affected upstream. nginx starts independently and returns a generic 503 while an upstream is unavailable; its own `/health` does not test upstream readiness.
 
 ## Homarr loads but a widget is unavailable
 
@@ -52,7 +52,8 @@ Cause:
 - VPN endpoint blocked
 
 Fix:
-- verify `WIREGUARD_*` values in `.env`
+- verify the Mullvad client private key and IPv4 address in `.env`; the provider's server catalogue supplies the endpoint and public key
+- keep the configured VPN interface `tun0` aligned with qBittorrent's binding
 - run the security verification script:
 ```bash
 ./scripts/security-check.sh
@@ -140,10 +141,11 @@ Fix:
 ```bash
 ls -l /dev/dri
 getent group render
+stat -c '%g' /dev/dri/renderD128
 ./scripts/doctor.sh
 ```
 
-Set `JELLYFIN_RENDER_GID` in `.env` to the host render group ID or the group ID shown for `/dev/dri/renderD128`, then recreate Jellyfin:
+Set `JELLYFIN_RENDER_GID` in `.env` to the numeric group shown for `/dev/dri/renderD128`, especially if the named render group differs, then recreate Jellyfin:
 ```bash
 docker compose up -d jellyfin
 ```
@@ -186,6 +188,14 @@ Fix:
 - Jellyfin library paths must be `/data/tvshows` and `/data/movies`
 - verify download and import paths in Sonarr/Radarr
 - trigger a manual library scan in Jellyfin
+
+## Jellyfin subpath or first-run wizard fails
+
+With this repository's stripping proxy, Jellyfin's Networking Base URL must be empty. Open `/jellyfin/web/index.html` for the wizard; internal integrations use `http://jellyfin:8096`. A stored `/jellyfin` Base URL requires coordinated proxy, healthcheck, and integration changes. Do not change only one side during troubleshooting.
+
+## Seerr cannot write its configuration
+
+Seerr runs as the configured `PUID:PGID`. Check the existing `Jellyseerr/Config` directory and files against that identity before upgrading; old official images defaulted to UID 1000. Setup reuses existing folders and does not automatically migrate ownership. Back up while stopped before any targeted permission repair.
 
 ## nginx config issues
 

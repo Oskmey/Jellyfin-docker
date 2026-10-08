@@ -19,7 +19,7 @@ What it does:
 - prompts for required settings
 - writes `.env`
 - creates missing media/config directories under `COMMON_PATH` and reuses existing folders safely
-- detects the host `render` group ID for Jellyfin when available
+- detects the render device's numeric group for Jellyfin, falling back to the host `render` group
 - generates the Homarr encryption key and Gluetun telemetry API key when missing
 - creates Homarr, Glances, and Gluetun configuration directories with restricted permissions
 - runs compose preflight validation (auto-detects `docker compose` or `docker-compose`, with override support)
@@ -35,6 +35,10 @@ Use this when provisioning through scripts or CI:
 Requirements:
 - `.env` already exists
 - all required variables are populated
+
+If configuring manually, copy `.env.example`, edit it, then run the non-interactive setup command above. It creates mandatory Gluetun auth and Glances configuration files and generates missing secrets. `HOMARR_BASE_URL` must be the browser-facing origin without a path, such as `http://nas.local:8090`.
+
+Mullvad provider mode requires `WIREGUARD_PRIVATE_KEY` and `WIREGUARD_ADDRESSES` from your downloaded configuration. Gluetun selects its server through `SERVER_COUNTRIES`; it supplies the server public key and endpoint. Legacy `WIREGUARD_PUBLIC_KEY` and `WIREGUARD_ENDPOINT` entries are unnecessary. The full-tunnel allowed IP default and explicit `VPN_INTERFACE=tun0` preserve qBittorrent's binding.
 
 ## Homarr configuration
 
@@ -60,6 +64,8 @@ Keep both exposed ports behind your NAS or router firewall. Do not forward nginx
 
 ## Start stack
 
+For an existing installation, use the checkpoint and migration procedure in [`updating.md`](updating.md) before recreating containers. The command below is for initial startup.
+
 ```bash
 docker compose up -d
 ```
@@ -84,4 +90,5 @@ Notes:
 - nginx is intended for LAN use. Keep `NGINX_PORT` behind your router or NAS firewall.
 - Seerr remains direct on its configured port and is not protected by nginx access rules.
 - The stack uses container healthchecks so dependent services wait for healthier upstreams during startup.
+- Healthchecks report status; they do not automatically restart unhealthy containers or prove download/import/playback works. Only configured `depends_on` relationships wait for startup health.
 - Docker JSON logs are rotated with `LOG_MAX_SIZE` and `LOG_MAX_FILE` to reduce long-term NAS disk growth.

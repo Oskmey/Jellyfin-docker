@@ -13,8 +13,8 @@ Usage: scripts/backup-configs.sh [--env-file PATH] [--output-dir PATH]
 
 Creates a timestamped tar.gz archive containing only service configuration
 folders from COMMON_PATH. Media libraries and downloads are intentionally
-excluded. Homarr's appdata is included, but a Homarr ZIP export is preferred
-for a consistent backup while Homarr is running. Secrets from .env and the
+excluded. Stop application writers before taking this raw filesystem backup;
+use application-supported exports for online backups. Secrets from .env and the
 Gluetun control-server auth file are never included.
 USAGE
 }
@@ -94,12 +94,13 @@ config_paths=(
   "Qbittorrent/Config"
   "Homarr/AppData"
   "Glances/glances.conf"
-  # Retain legacy Homepage data during the migration rollback window.
+  # Keep existing Homepage data recoverable even though its templates are gone.
   "Homepage/Config"
 )
 
+warn "Raw configuration archives require stopped application writers; a successful tar does not prove database consistency."
 if [[ -d "${common_path_abs}/Homarr/AppData" ]]; then
-  warn "Homarr/AppData is stateful SQLite data. Export a Homarr backup ZIP first, or stop Homarr before relying on this archive."
+  warn "Export a Homarr backup ZIP too, and stop Homarr before copying AppData."
   warn "Keep HOMARR_SECRET_ENCRYPTION_KEY in a separate protected escrow; it is not included here."
 fi
 
@@ -115,13 +116,25 @@ done
 [[ "${#existing_paths[@]}" -gt 0 ]] || fail "No config folders found under ${common_path_abs}."
 
 timestamp="$(date +%Y%m%d-%H%M%S)"
-archive_path="${output_dir_abs}/media-stack-configs-${timestamp}.tar.gz"
+temporary_archive="$(mktemp "${output_dir_abs}/.media-stack-configs-${timestamp}.XXXXXX")" || fail "Failed to create backup staging file."
+archive_name="${temporary_archive##*/}"
+archive_path="${output_dir_abs}/${archive_name#.}.tar.gz"
+cleanup() {
+  rm -f -- "${temporary_archive}"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 (
   cd "${common_path_abs}"
-  tar -czf "${archive_path}" "${existing_paths[@]}"
-)
+  tar -czf "${temporary_archive}" "${existing_paths[@]}"
+) || fail "Backup creation failed; no archive was published."
 
-chmod 0600 "${archive_path}" || fail "Failed to restrict archive permissions: ${archive_path}"
+chmod 0600 "${temporary_archive}" || fail "Failed to restrict archive permissions."
+# The mktemp suffix keeps same-second backups distinct. Publish on the same
+# filesystem without overwriting another archive or requiring hardlink support.
+mv -n -- "${temporary_archive}" "${archive_path}" || fail "Failed to publish backup."
+[[ ! -e "${temporary_archive}" ]] || fail "Refusing to overwrite existing backup: ${archive_path}"
 
 echo "Config backup written: ${archive_path}"

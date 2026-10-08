@@ -31,6 +31,9 @@ Add credentials in Homarr's integration settings, not in board notes or Git. Use
 | Docker | `http://docker-socket-proxy:2375` | none |
 
 Docker statistics are read-only: Homarr has no Docker socket mount, and the proxy rejects write requests. Glances and the Gluetun control server have no published host ports.
+Read-only Docker inspection still exposes container metadata, including environment secrets, to the trusted administrator integration. Keep it private. The proxy also denies archive/export, logs, process, and lifecycle operations; a read-only socket mount alone is not an API authorization boundary.
+
+The minimal Glances image supplies the CPU, memory, filesystem, and psutil sensor APIs used here. Temperature availability depends on the NAS exposing sensors; unavailable readings should remain **Not reported**. Bridge-network throughput and process details are deliberately omitted. Do not switch to the full image merely for a missing host sensor.
 
 ## Home Cinema board
 
@@ -92,6 +95,6 @@ An empty queue is healthy, a missing sensor is **Not reported**, and VPN status 
 
 Use Homarr's built-in backup export after creating the boards and after material dashboard changes. Store the ZIP with mode `0600` outside Git and outside the live AppData folder.
 
-The backup still depends on `HOMARR_SECRET_ENCRYPTION_KEY`. Keep that value in a password manager or another separate secret backup. `scripts/backup-configs.sh` also archives Homarr AppData, but a live SQLite copy is only a secondary recovery measure. Prefer the Homarr export for consistent restores.
+The backup still depends on `HOMARR_SECRET_ENCRYPTION_KEY`. Keep that value in a password manager or another separate secret backup. Stop writers before `scripts/backup-configs.sh` archives AppData. For a major migration, keep the complete stopped AppData and pre-upgrade image checkpoint as described in [`updating.md`](updating.md); an export does not replace that rollback checkpoint.
 
 Before deleting the legacy `${COMMON_PATH}/Homepage/Config`, restore the Homarr export into a temporary Homarr instance and verify users, boards, integrations, and appearance.
