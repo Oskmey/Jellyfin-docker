@@ -3,10 +3,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# shellcheck source=scripts/lib/common.sh
+source "${SCRIPT_DIR}/lib/common.sh"
 ENV_FILE="${REPO_ROOT}/.env"
-DOCKER_BIN="${DOCKER_BIN:-}"
-COMPOSE_CMD=()
-COMPOSE_CMD_DISPLAY=""
 FIX_ENV=0
 ROUTE_CHECK_HOST="127.0.0.1"
 
@@ -19,7 +18,6 @@ Checks:
   - nginx syntax and local route responses
   - prefix-stripped routes redirect within their prefix
   - Homarr/Glances isolation from the Docker socket and host ports
-  - read-only Docker socket proxy behavior
   - authenticated, read-only Gluetun telemetry configuration
   - Gluetun health
   - qBittorrent network namespace sharing with Gluetun
@@ -34,11 +32,6 @@ Environment:
 USAGE
 }
 
-fail() {
-  echo "ERROR: $*" >&2
-  exit 1
-}
-
 log_ok() {
   echo "OK: $*"
 }
@@ -47,158 +40,7 @@ log_info() {
   echo "INFO: $*"
 }
 
-resolve_docker_bin() {
-  if [[ -n "${DOCKER_BIN:-}" ]]; then
-    [[ -x "${DOCKER_BIN}" ]] || fail "DOCKER_BIN is not executable: ${DOCKER_BIN}"
-    return 0
-  fi
-
-  if command -v docker >/dev/null 2>&1; then
-    DOCKER_BIN="$(command -v docker)"
-    return 0
-  fi
-
-  if [[ -x /Volume1/@apps/DockerEngine/dockerd/bin/docker ]]; then
-    DOCKER_BIN="/Volume1/@apps/DockerEngine/dockerd/bin/docker"
-    return 0
-  fi
-
-  fail "Docker is not available. Set DOCKER_BIN or install docker."
-}
-
-detect_compose_command() {
-  if [[ -n "${DOCKER_COMPOSE_BIN:-}" ]]; then
-    [[ -x "${DOCKER_COMPOSE_BIN}" ]] || fail "DOCKER_COMPOSE_BIN is not executable: ${DOCKER_COMPOSE_BIN}"
-    COMPOSE_CMD=("${DOCKER_COMPOSE_BIN}")
-    COMPOSE_CMD_DISPLAY="${DOCKER_COMPOSE_BIN}"
-    return
-  fi
-
-  resolve_docker_bin
-
-  if "${DOCKER_BIN}" compose version >/dev/null 2>&1; then
-    COMPOSE_CMD=("${DOCKER_BIN}" compose)
-    COMPOSE_CMD_DISPLAY="${DOCKER_BIN} compose"
-    return
-  fi
-
-  if command -v docker-compose >/dev/null 2>&1; then
-    COMPOSE_CMD=("$(command -v docker-compose)")
-    COMPOSE_CMD_DISPLAY="${COMPOSE_CMD[0]}"
-    return
-  fi
-
-  if [[ -n "${DOCKER_BIN:-}" && -x "$(dirname "${DOCKER_BIN}")/docker-compose" ]]; then
-    COMPOSE_CMD=("$(dirname "${DOCKER_BIN}")/docker-compose")
-    COMPOSE_CMD_DISPLAY="${COMPOSE_CMD[0]}"
-    return
-  fi
-
-  fail "Docker Compose is not available. Set DOCKER_COMPOSE_BIN, or install docker compose/docker-compose."
-}
-
-run_compose() {
-  (
-    cd "${REPO_ROOT}"
-    "${COMPOSE_CMD[@]}" "$@"
-  )
-}
-
-warn() {
-  echo "WARN: $*" >&2
-}
-
-env_file_has_crlf() {
-  local env_path="$1"
-  LC_ALL=C grep -q $'\r' "${env_path}"
-}
-
-normalize_env_file_line_endings() {
-  local env_path="$1"
-  local tmp_file
-
-  tmp_file="$(mktemp "${env_path}.tmp.XXXXXX")"
-
-  if [[ -z "${tmp_file}" ]]; then
-    fail "Failed to create temp file for ${env_path}."
-  fi
-
-  if ! tr -d '\r' < "${env_path}" > "${tmp_file}"; then
-    rm -f "${tmp_file}"
-    fail "Failed to normalize line endings in ${env_path}."
-  fi
-
-  if ! mv "${tmp_file}" "${env_path}"; then
-    rm -f "${tmp_file}"
-    fail "Failed to replace ${env_path} after line ending normalization."
-  fi
-
-  warn "Detected Windows line endings in ${env_path}; converted to Unix LF."
-}
-
-env_file_permissions_are_restricted() {
-  local env_path="$1"
-
-  if [[ "$(uname -s 2>/dev/null)" =~ ^(MINGW|MSYS|CYGWIN) ]]; then
-    return 0
-  fi
-
-  local mode
-  mode="$(stat -c '%a' "${env_path}" 2>/dev/null || true)"
-  [[ -n "${mode}" ]] || return 0
-  [[ "${mode}" == "600" ]]
-}
-
-ensure_env_file_permissions() {
-  local env_path="$1"
-
-  if chmod 600 "${env_path}" 2>/dev/null; then
-    return 0
-  fi
-
-  warn "Failed to restrict permissions on ${env_path}; secure it manually."
-}
-
-prepare_env_file() {
-  local env_path="$1"
-
-  if env_file_has_crlf "${env_path}"; then
-    if [[ "${FIX_ENV}" -eq 1 ]]; then
-      normalize_env_file_line_endings "${env_path}"
-    else
-      warn "Detected Windows line endings in ${env_path}; rerun with --fix-env to convert to Unix LF."
-    fi
-  fi
-
-  if ! env_file_permissions_are_restricted "${env_path}"; then
-    if [[ "${FIX_ENV}" -eq 1 ]]; then
-      ensure_env_file_permissions "${env_path}"
-    else
-      warn "${env_path} permissions are broader than 600; rerun with --fix-env to tighten them when supported."
-    fi
-  fi
-}
-
-detect_render_gid() {
-  if command -v getent >/dev/null 2>&1 && getent group render >/dev/null 2>&1; then
-    getent group render | awk -F: '{print $3}'
-    return
-  fi
-
-  if [[ -e /dev/dri/renderD128 ]]; then
-    stat -c '%g' /dev/dri/renderD128 2>/dev/null && return
-  fi
-
-  printf '109'
-}
-
-apply_env_defaults() {
-  BIND_IP="${BIND_IP:-0.0.0.0}"
-  WIREGUARD_ALLOWED_IPS="${WIREGUARD_ALLOWED_IPS:-0.0.0.0/0}"
-  JELLYFIN_RENDER_GID="${JELLYFIN_RENDER_GID:-$(detect_render_gid)}"
-  LOG_MAX_SIZE="${LOG_MAX_SIZE:-10m}"
-  LOG_MAX_FILE="${LOG_MAX_FILE:-3}"
-
+set_route_check_host() {
   case "${BIND_IP}" in
     0.0.0.0)
       ROUTE_CHECK_HOST="127.0.0.1"
@@ -213,13 +55,6 @@ apply_env_defaults() {
       ROUTE_CHECK_HOST="${BIND_IP}"
       ;;
   esac
-}
-
-validate_hex_secret() {
-  local key="$1"
-  local value="${!key:-}"
-
-  [[ "${value}" =~ ^[[:xdigit:]]{64}$ ]] || fail "${key} must contain exactly 64 hexadecimal characters."
 }
 
 get_service_container() {
@@ -260,46 +95,6 @@ assert_read_only_mount() {
   mount_state="$("${DOCKER_BIN}" inspect --format "{{range .Mounts}}{{if eq .Destination \"${destination}\"}}{{println .RW}}{{end}}{{end}}" "${container_id}")"
   [[ "${mount_state}" == "false" ]] || fail "${label} must mount ${destination} read-only."
   log_ok "${label} mounts ${destination} read-only."
-}
-
-assert_container_env() {
-  local container_id="$1"
-  local expected="$2"
-  local env_lines
-
-  env_lines="$("${DOCKER_BIN}" inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "${container_id}")"
-  grep -Fqx "${expected}" <<< "${env_lines}" || fail "Missing required container setting: ${expected}"
-}
-
-check_docker_proxy_policy() {
-  local homarr_id="$1"
-  local proxy_id="$2"
-  local status
-  local option
-  local endpoint
-
-  assert_container_env "${proxy_id}" "POST=0"
-  assert_container_env "${proxy_id}" "CONTAINERS=1"
-  assert_container_env "${proxy_id}" "INFO=1"
-  assert_container_env "${proxy_id}" "PING=1"
-  assert_container_env "${proxy_id}" "VERSION=1"
-  for option in ARCHIVE CHANGES EXPORT LOGS TOP PAUSE UNPAUSE START STOP RESTARTS; do
-    assert_container_env "${proxy_id}" "ALLOW_${option}=0"
-  done
-
-  "${DOCKER_BIN}" exec "${homarr_id}" node -e \
-    "fetch('http://docker-socket-proxy:2375/_ping',{signal:AbortSignal.timeout(10000)}).then(async r=>process.exit(r.ok&&(await r.text()).trim()==='OK'?0:1)).catch(()=>process.exit(1))" || \
-    fail "Homarr cannot read the Docker proxy health endpoint."
-
-  status="$("${DOCKER_BIN}" exec "${homarr_id}" node -e \
-    "fetch('http://docker-socket-proxy:2375/containers/security-check-does-not-exist/start',{method:'POST',signal:AbortSignal.timeout(10000)}).then(r=>console.log(r.status)).catch(()=>process.exit(1))")" || fail "Docker proxy POST probe failed."
-  [[ "${status}" == "403" ]] || fail "Docker proxy accepted or mishandled a POST request (status ${status:-unknown})."
-  for endpoint in archive changes export logs top; do
-    status="$("${DOCKER_BIN}" exec "${homarr_id}" node -e \
-      "fetch('http://docker-socket-proxy:2375/containers/security-check-does-not-exist/${endpoint}',{signal:AbortSignal.timeout(10000)}).then(r=>console.log(r.status)).catch(()=>process.exit(1))")" || fail "Docker proxy ${endpoint} probe failed."
-    [[ "${status}" == "403" ]] || fail "Docker proxy permits or mishandles ${endpoint} reads (status ${status:-unknown})."
-  done
-  log_ok "Docker proxy permits telemetry GETs and rejects container-control POSTs."
 }
 
 check_gluetun_control_policy() {
@@ -569,18 +364,16 @@ if [[ "${ENV_FILE}" != /* ]]; then
 fi
 
 [[ -f "${ENV_FILE}" ]] || fail "Missing env file: ${ENV_FILE}"
-prepare_env_file "${ENV_FILE}"
-
-set -a
-# shellcheck disable=SC1090
-source "${ENV_FILE}"
-set +a
+prepare_env_file "${ENV_FILE}" "${FIX_ENV}"
+load_env_file "${ENV_FILE}"
 
 apply_env_defaults
+set_route_check_host
 validate_hex_secret "HOMARR_SECRET_ENCRYPTION_KEY"
 validate_hex_secret "GLUETUN_CONTROL_API_KEY"
 
 detect_compose_command
+resolve_docker_bin || fail "Docker is not available. Set DOCKER_BIN or install docker."
 
 (
   cd "${REPO_ROOT}"
@@ -594,7 +387,6 @@ sonarr_id="$(get_service_container "sonarr")"
 nginx_id="$(get_service_container "nginx-proxy")"
 homarr_id="$(get_service_container "homarr")"
 glances_id="$(get_service_container "glances")"
-docker_proxy_id="$(get_service_container "docker-socket-proxy")"
 
 gluetun_health="$("${DOCKER_BIN}" inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "${gluetun_id}")"
 [[ "${gluetun_health}" == "healthy" ]] || fail "Gluetun is not healthy: ${gluetun_health}"
@@ -606,13 +398,10 @@ log_ok "qBittorrent shares Gluetun's network namespace."
 
 assert_no_published_ports "Homarr" "${homarr_id}"
 assert_no_published_ports "Glances" "${glances_id}"
-assert_no_published_ports "Docker socket proxy" "${docker_proxy_id}"
 assert_no_docker_socket_mount "Homarr" "${homarr_id}"
 assert_no_docker_socket_mount "Glances" "${glances_id}"
-assert_read_only_mount "Docker socket proxy" "${docker_proxy_id}" "/var/run/docker.sock"
 assert_read_only_mount "Gluetun" "${gluetun_id}" "/gluetun/auth/config.toml"
 assert_read_only_mount "Glances" "${glances_id}" "/etc/glances.conf"
-check_docker_proxy_policy "${homarr_id}" "${docker_proxy_id}"
 check_gluetun_control_policy "${gluetun_id}"
 
 "${DOCKER_BIN}" exec "${nginx_id}" nginx -t > /dev/null

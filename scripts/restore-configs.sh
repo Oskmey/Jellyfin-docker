@@ -4,6 +4,8 @@ umask 077
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# shellcheck source=scripts/lib/common.sh
+source "${SCRIPT_DIR}/lib/common.sh"
 ENV_FILE="${REPO_ROOT}/.env"
 ARCHIVE=""
 FORCE=0
@@ -20,20 +22,6 @@ files in those targets are removed. Stop writers and back up before restoring.
 This never restores .env, Gluetun control credentials,
 media libraries, or downloads.
 USAGE
-}
-
-fail() {
-  echo "ERROR: $*" >&2
-  exit 1
-}
-
-resolve_path() {
-  local value="$1"
-  if [[ "${value}" = /* ]]; then
-    printf '%s' "${value}"
-  else
-    printf '%s' "${REPO_ROOT}/${value}"
-  fi
 }
 
 top_level_paths=(
@@ -92,10 +80,8 @@ ARCHIVE="$(resolve_path "${ARCHIVE}")"
 [[ -f "${ENV_FILE}" ]] || fail "Missing env file: ${ENV_FILE}"
 [[ -f "${ARCHIVE}" ]] || fail "Missing backup archive: ${ARCHIVE}"
 
-set -a
-# shellcheck disable=SC1090
-source "${ENV_FILE}"
-set +a
+! env_file_has_crlf "${ENV_FILE}" || fail "${ENV_FILE} has Windows line endings; run scripts/doctor.sh --fix-env first."
+load_env_file "${ENV_FILE}"
 
 [[ -n "${COMMON_PATH:-}" ]] || fail "COMMON_PATH is missing in ${ENV_FILE}"
 [[ "${PUID:-}" =~ ^[0-9]+$ ]] || fail "PUID must be numeric in ${ENV_FILE}"

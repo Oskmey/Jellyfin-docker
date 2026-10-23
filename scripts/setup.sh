@@ -3,6 +3,8 @@ set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# shellcheck source=scripts/lib/common.sh
+source "${SCRIPT_DIR}/lib/common.sh"
 EXAMPLE_FILE="${REPO_ROOT}/.env.example"
 ENV_FILE="${REPO_ROOT}/.env"
 NON_INTERACTIVE=0
@@ -13,9 +15,6 @@ DIR_CREATED=0
 DIR_REUSED=0
 WARNINGS=0
 FAILURES=0
-DOCKER_BIN="${DOCKER_BIN:-}"
-COMPOSE_CMD=()
-COMPOSE_CMD_DISPLAY=""
 ENV_KEYS=(
   COMMON_PATH TZ PUID PGID JELLYFIN_RENDER_GID BIND_IP NGINX_PORT
   HOMARR_BASE_URL HOMARR_SECRET_ENCRYPTION_KEY GLUETUN_CONTROL_API_KEY
@@ -102,6 +101,20 @@ die() {
   exit 1
 }
 
+# Route shared helper messages through this script's logging. Warnings go to
+# stderr because helpers such as detect_render_gid run in command substitutions.
+error() {
+  log_err "$*"
+}
+
+warn() {
+  log_warn "$*" >&2
+}
+
+fail() {
+  die "$*"
+}
+
 on_error() {
   local exit_code="$1"
   local line_no="$2"
@@ -135,13 +148,6 @@ generate_hex_secret() {
 
   [[ -r /dev/urandom ]] || die "Cannot generate secrets: openssl is unavailable and /dev/urandom is not readable."
   od -An -N32 -tx1 /dev/urandom | tr -d ' \n'
-}
-
-validate_hex_secret() {
-  local key="$1"
-  local value="${!key:-}"
-
-  [[ "${value}" =~ ^[[:xdigit:]]{64}$ ]] || die "${key} must contain exactly 64 hexadecimal characters."
 }
 
 validate_env_value() {
@@ -236,115 +242,16 @@ ensure_generated_secrets() {
   fi
 }
 
-ensure_env_file_permissions() {
-  local env_path="$1"
-
-  [[ -f "${env_path}" ]] || return 0
-
-  if chmod 600 "${env_path}" 2>/dev/null; then
-    return 0
-  fi
-
-  log_warn "Failed to restrict permissions on ${env_path}; secure it manually."
-}
-
-resolve_path() {
-  local value="$1"
-  if [[ "${value}" = /* ]]; then
-    printf '%s' "${value}"
-  else
-    printf '%s' "${REPO_ROOT}/${value}"
-  fi
-}
-
-resolve_docker_bin() {
-  if [[ -n "${DOCKER_BIN:-}" ]]; then
-    [[ -x "${DOCKER_BIN}" ]] || die "DOCKER_BIN is not executable: ${DOCKER_BIN}"
-    return 0
-  fi
-
-  if command -v docker >/dev/null 2>&1; then
-    DOCKER_BIN="$(command -v docker)"
-    return 0
-  fi
-
-  if [[ -x /Volume1/@apps/DockerEngine/dockerd/bin/docker ]]; then
-    DOCKER_BIN="/Volume1/@apps/DockerEngine/dockerd/bin/docker"
-    return 0
-  fi
-
-  return 1
-}
-
-detect_compose_command() {
-  if [[ -n "${DOCKER_COMPOSE_BIN:-}" ]]; then
-    [[ -x "${DOCKER_COMPOSE_BIN}" ]] || die "DOCKER_COMPOSE_BIN is not executable: ${DOCKER_COMPOSE_BIN}"
-    COMPOSE_CMD=("${DOCKER_COMPOSE_BIN}")
-    COMPOSE_CMD_DISPLAY="${DOCKER_COMPOSE_BIN}"
-    return
-  fi
-
-  if resolve_docker_bin && "${DOCKER_BIN}" compose version >/dev/null 2>&1; then
-    COMPOSE_CMD=("${DOCKER_BIN}" compose)
-    COMPOSE_CMD_DISPLAY="${DOCKER_BIN} compose"
-    return
-  fi
-
-  if command -v docker-compose >/dev/null 2>&1; then
-    COMPOSE_CMD=("$(command -v docker-compose)")
-    COMPOSE_CMD_DISPLAY="${COMPOSE_CMD[0]}"
-    return
-  fi
-
-  if [[ -n "${DOCKER_BIN:-}" && -x "$(dirname "${DOCKER_BIN}")/docker-compose" ]]; then
-    COMPOSE_CMD=("$(dirname "${DOCKER_BIN}")/docker-compose")
-    COMPOSE_CMD_DISPLAY="${COMPOSE_CMD[0]}"
-    return
-  fi
-
-  die "Docker Compose is not available. Set DOCKER_COMPOSE_BIN, or install docker compose/docker-compose."
-}
-
 require_commands() {
   detect_compose_command
-}
-
-run_compose() {
-  "${COMPOSE_CMD[@]}" "$@"
-}
-
-normalize_env_file_line_endings() {
-  local env_path="$1"
-  local tmp_file
-
-  if LC_ALL=C grep -q $'\r$' "${env_path}"; then
-    tmp_file="$(mktemp "${env_path}.tmp.XXXXXX")" || die "Failed to create temp file for ${env_path}."
-
-    if ! sed 's/\r$//' "${env_path}" > "${tmp_file}"; then
-      rm -f "${tmp_file}"
-      die "Failed to normalize line endings in ${env_path}."
-    fi
-
-    if ! mv "${tmp_file}" "${env_path}"; then
-      rm -f "${tmp_file}"
-      die "Failed to replace ${env_path} after line ending normalization."
-    fi
-
-    log_warn "Detected Windows line endings in ${env_path}; converted to Unix LF."
-  fi
 }
 
 source_env_file() {
   local env_path="$1"
 
   [[ -f "${env_path}" ]] || die "Missing env file: ${env_path}"
-  normalize_env_file_line_endings "${env_path}"
-  ensure_env_file_permissions "${env_path}"
-
-  set -a
-  # shellcheck disable=SC1090
-  source "${env_path}"
-  set +a
+  prepare_env_file "${env_path}" 1
+  load_env_file "${env_path}"
 }
 
 prompt_default() {
@@ -401,108 +308,6 @@ prompt_secret_required() {
   done
 
   printf '%s' "${value}"
-}
-
-validate_port() {
-  local key="$1"
-  local value="${!key:-}"
-
-  [[ -n "${value}" ]] || return 0
-  [[ "${value}" =~ ^[0-9]+$ ]] || die "${key} must be a numeric port: ${value}"
-  (( value >= 1 && value <= 65535 )) || die "${key} must be between 1 and 65535: ${value}"
-}
-
-validate_integer() {
-  local key="$1"
-  local value="${!key:-}"
-
-  [[ -n "${value}" ]] || die "${key} is missing in ${ENV_FILE}"
-  [[ "${value}" =~ ^[0-9]+$ ]] || die "${key} must be numeric: ${value}"
-}
-
-validate_http_url() {
-  local key="$1"
-  local value="${!key:-}"
-
-  [[ -n "${value}" ]] || return 0
-  if [[ "${key}" == HOMARR_BASE_URL ]]; then
-    [[ "${value}" =~ ^https?://[^/?#@[:space:]]+/?$ && "${value}" != *\\* ]] ||
-      die "HOMARR_BASE_URL must be an http:// or https:// origin, optionally ending in /, without credentials, a path, query, or fragment."
-    return 0
-  fi
-  [[ "${value}" =~ ^https?://[^[:space:]]+$ ]] || die "${key} must start with http:// or https:// and contain no spaces: ${value}"
-}
-
-detect_render_gid() {
-  local device_gid
-  local named_gid=""
-  if command -v getent >/dev/null 2>&1 && getent group render >/dev/null 2>&1; then
-    named_gid="$(getent group render | awk -F: '{print $3}')"
-  fi
-
-  if [[ -e /dev/dri/renderD128 ]]; then
-    if device_gid="$(stat -c '%g' /dev/dri/renderD128 2>/dev/null)"; then
-      if [[ -n "${named_gid}" && "${named_gid}" != "${device_gid}" ]]; then
-        log_warn "The render group GID (${named_gid}) differs from renderD128 (${device_gid}); using the device GID." >&2
-      fi
-      printf '%s' "${device_gid}"
-      return
-    fi
-  fi
-
-  printf '%s' "${named_gid:-109}"
-}
-
-apply_env_defaults() {
-  BIND_IP="${BIND_IP:-0.0.0.0}"
-  WIREGUARD_ALLOWED_IPS="${WIREGUARD_ALLOWED_IPS:-0.0.0.0/0}"
-  JELLYFIN_RENDER_GID="${JELLYFIN_RENDER_GID:-$(detect_render_gid)}"
-  LOG_MAX_SIZE="${LOG_MAX_SIZE:-10m}"
-  LOG_MAX_FILE="${LOG_MAX_FILE:-3}"
-  HOMARR_BASE_URL="${HOMARR_BASE_URL:-http://localhost:${NGINX_PORT:-8090}}"
-}
-
-validate_required_env() {
-  apply_env_defaults
-
-  local missing=0
-  local required=(
-    COMMON_PATH
-    TZ
-    PUID
-    PGID
-    HOMARR_BASE_URL
-    HOMARR_SECRET_ENCRYPTION_KEY
-    GLUETUN_CONTROL_API_KEY
-    WIREGUARD_ADDRESSES
-    WIREGUARD_PRIVATE_KEY
-    WIREGUARD_ALLOWED_IPS
-  )
-
-  for key in "${required[@]}"; do
-    if [[ -z "${!key:-}" ]]; then
-      log_err "${key} is missing in ${ENV_FILE}"
-      missing=1
-    fi
-  done
-
-  if [[ "${missing}" -ne 0 ]]; then
-    exit 1
-  fi
-
-  validate_integer "PUID"
-  validate_integer "PGID"
-  validate_integer "JELLYFIN_RENDER_GID"
-  validate_port "NGINX_PORT"
-  validate_port "JELLYSEERR_PORT"
-  validate_http_url "HOMARR_BASE_URL"
-  validate_http_url "JELLYSEERR_EXTERNAL_URL"
-  validate_hex_secret "HOMARR_SECRET_ENCRYPTION_KEY"
-  validate_hex_secret "GLUETUN_CONTROL_API_KEY"
-}
-
-load_env_file() {
-  source_env_file "${ENV_FILE}"
 }
 
 write_env_file() {
@@ -787,7 +592,7 @@ log_ok "Docker Compose checks passed (${COMPOSE_CMD_DISPLAY})."
 
 log_step "Environment configuration"
 if [[ "${NON_INTERACTIVE}" -eq 1 ]]; then
-  load_env_file
+  source_env_file "${ENV_FILE}"
   ensure_generated_secrets
   validate_required_env
   log_ok "Loaded and validated ${ENV_FILE}."

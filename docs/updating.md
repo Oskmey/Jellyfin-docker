@@ -16,7 +16,6 @@ Services use literal `:latest` image tags, except Gluetun, which uses `:v3` to f
 | qBittorrent | 5.2.4 / libtorrent 2.0.15, ls479 |
 | FlareSolverr | v3.5.2 |
 | Glances | v4.5.7, minimal image |
-| socket-proxy | 3.4.6-r0-ls101 |
 | Gluetun | `v3` stable release tag (previously a `latest` master build) |
 | nginx | 1.31.6 mainline, October 6 rebuild |
 
@@ -86,7 +85,7 @@ Run the applicable gates before another pull:
 - Sonarr/Radarr download-client tests, import paths, and hardlinks on an existing imported file; retain the shared `/data` mount.
 - Jellyfin wizard/login at `/jellyfin/web/index.html`, empty app Base URL, playback, subtitle and GPU checks. nginx continues stripping the prefix.
 - Homarr users, boards, encrypted integrations and telemetry; confirm the public board gained no private fields.
-- Docker write/lifecycle and sensitive read operations stay blocked; Gluetun mutation routes remain denied.
+- Gluetun mutation routes remain denied.
 
 Healthchecks report liveness/readiness and startup dependencies gate only declared relationships. They do not restart an unhealthy process or replace these functional checks. Keep nginx's asset-copy startup behavior: it is an intentional NAS permission workaround.
 

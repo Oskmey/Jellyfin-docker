@@ -33,12 +33,12 @@ Notes:
 Cause:
 - the application integration URL or API key is wrong
 - the upstream is still starting
-- the Glances, Docker proxy, or Gluetun integration is using a browser URL instead of its internal Docker URL
+- the Glances or Gluetun integration is using a browser URL instead of its internal Docker URL
 
 Fix:
 ```bash
 docker compose ps
-docker compose logs --tail 100 homarr glances docker-socket-proxy gluetun
+docker compose logs --tail 100 homarr glances gluetun
 ```
 
 Compare the integration URL with [`homarr.md`](homarr.md). Do not publish an internal telemetry port to work around an integration error.

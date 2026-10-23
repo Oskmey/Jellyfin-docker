@@ -145,6 +145,7 @@ Validate a backup before restoring it:
 - `scripts/security-check.sh`: read-only VPN and local routing verification by default (`--fix-env` is opt-in)
 - `scripts/backup-configs.sh`: config-only backup archives under `${COMMON_PATH}/Backups`
 - `scripts/restore-configs.sh`: allowlisted config restore with dry-run and overwrite protection
+- `scripts/lib/common.sh`: shared Docker detection, env loading, and validation helpers used by the scripts
 - `nginx/conf.d/default.conf`: reverse proxy routes
 - `docs/`: onboarding, operations, and troubleshooting
 
@@ -157,9 +158,8 @@ Validate a backup before restoring it:
 - Core services now include healthchecks to make restarts and cold starts more predictable.
 - Images use literal `:latest` tags, except Gluetun, which tracks its newest stable release through `:v3` because its `latest` tag is a development build. Updates are manual and staged per service; follow [`docs/updating.md`](docs/updating.md) before pulling images or migrating data.
 - Docker JSON logs are rotated by default to reduce slow NAS disk growth.
-- Homarr never receives the Docker socket directly. Container statistics pass through an internal read-only proxy with write methods disabled.
-- Docker inspection can still reveal container environment secrets to the trusted Homarr administrator; keep this integration private.
-- Homarr, Glances, the Docker socket proxy, and Gluetun telemetry are internal. nginx is the only Homarr entrypoint.
+- No container has access to the Docker API, so the Homarr dashboard cannot read container settings or secrets.
+- Homarr, Glances, and Gluetun telemetry are internal. nginx is the only Homarr entrypoint.
 - nginx is intended for LAN use. Keep `BIND_IP` and `NGINX_PORT` behind your router and do not forward it publicly. Docker-published ports usually bypass the NAS host firewall, so the router is the boundary that matters.
 - Seerr stays direct on its configured port. Do not forward that port publicly.
 - If Docker is not on `PATH`, run manual compose commands with your host's `docker-compose` binary or export `DOCKER_COMPOSE_BIN`.

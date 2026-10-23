@@ -4,6 +4,8 @@ umask 077
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# shellcheck source=scripts/lib/common.sh
+source "${SCRIPT_DIR}/lib/common.sh"
 ENV_FILE="${REPO_ROOT}/.env"
 OUTPUT_DIR=""
 
@@ -17,24 +19,6 @@ excluded. Stop application writers before taking this raw filesystem backup;
 use application-supported exports for online backups. Secrets from .env and the
 Gluetun control-server auth file are never included.
 USAGE
-}
-
-fail() {
-  echo "ERROR: $*" >&2
-  exit 1
-}
-
-warn() {
-  echo "WARN: $*" >&2
-}
-
-resolve_path() {
-  local value="$1"
-  if [[ "${value}" = /* ]]; then
-    printf '%s' "${value}"
-  else
-    printf '%s' "${REPO_ROOT}/${value}"
-  fi
 }
 
 while [[ $# -gt 0 ]]; do
@@ -67,10 +51,8 @@ fi
 
 [[ -f "${ENV_FILE}" ]] || fail "Missing env file: ${ENV_FILE}"
 
-set -a
-# shellcheck disable=SC1090
-source "${ENV_FILE}"
-set +a
+! env_file_has_crlf "${ENV_FILE}" || fail "${ENV_FILE} has Windows line endings; run scripts/doctor.sh --fix-env first."
+load_env_file "${ENV_FILE}"
 
 [[ -n "${COMMON_PATH:-}" ]] || fail "COMMON_PATH is missing in ${ENV_FILE}"
 

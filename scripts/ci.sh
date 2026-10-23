@@ -7,6 +7,7 @@ CI_ENV_FILE=""
 TEST_ROOT=""
 
 BASH_FILES=(
+  "scripts/lib/common.sh"
   "scripts/setup.sh"
   "scripts/doctor.sh"
   "scripts/security-check.sh"
@@ -67,7 +68,7 @@ lint_shell() {
     for file in "${BASH_FILES[@]}"; do
       bash -n "${file}"
     done
-    shellcheck "${BASH_FILES[@]}"
+    shellcheck -x "${BASH_FILES[@]}"
   )
 }
 
@@ -121,6 +122,7 @@ test_data_scripts() {
   test_backup_publication
   test_setup_env
   test_security_helpers
+  test_common_env_helpers
 }
 
 test_restore_configs() {
@@ -441,9 +443,13 @@ test_security_helpers() {
   # Load definitions only, so stubs can exercise policy checks without Docker
   # daemon access, live configuration, or real network requests.
   sed '/^while \[\[ \$# -gt 0 \]\]; do/,$d' "${REPO_ROOT}/scripts/security-check.sh" > "${helpers}"
+  # The extracted helpers source lib/common.sh relative to their own location.
+  mkdir -p "${TEST_ROOT}/lib"
+  cp "${REPO_ROOT}/scripts/lib/common.sh" "${TEST_ROOT}/lib/common.sh"
   (
     # shellcheck disable=SC1090
     source "${helpers}"
+    # shellcheck disable=SC2030 # Deliberately local to this test subshell.
     REPO_ROOT="${expected_repo}"
     # shellcheck disable=SC2317,SC2329 # Called indirectly through COMPOSE_CMD.
     compose_stub() {
@@ -479,27 +485,28 @@ test_security_helpers() {
     if (expect_redirect_within /jellyfin/ /jellyfin/) >/dev/null 2>&1; then
       fail "Diagnostics accepted a redirect that escapes the Jellyfin prefix."
     fi
+  )
+}
 
-    # shellcheck disable=SC2317,SC2329 # Called indirectly through DOCKER_BIN.
-    fake_docker() {
-      if [[ "$1" == inspect ]]; then
-        printf '%s\n' POST=0 CONTAINERS=1 INFO=1 PING=1 VERSION=1
-        local option
-        for option in ARCHIVE CHANGES EXPORT LOGS TOP PAUSE UNPAUSE START STOP RESTARTS; do printf 'ALLOW_%s=0\n' "${option}"; done
-      else
-        [[ "$*" == *'AbortSignal.timeout(10000)'* ]] || return 1
-        [[ "$*" != *'/_ping'* ]] || return 0
-        printf '%s\n' "${fixture_status}"
-      fi
-    }
-    # shellcheck disable=SC2034 # Read by the sourced policy checks.
-    DOCKER_BIN=fake_docker
-    fixture_status=403
-    check_docker_proxy_policy fixture-homarr fixture-proxy >/dev/null
-    fixture_status=404
-    if (check_docker_proxy_policy fixture-homarr fixture-proxy) >/dev/null 2>&1; then
-      fail "Diagnostics accepted an unblocked proxy endpoint."
-    fi
+test_common_env_helpers() {
+  local env_file="${TEST_ROOT}/crlf.env"
+  # shellcheck disable=SC2031 # The helper test changes REPO_ROOT only in its own subshell.
+  local common_lib="${REPO_ROOT}/scripts/lib/common.sh"
+
+  log_step "Shared env helper regression tests"
+  printf "COMMON_PATH='/srv/media'\r\nTZ='UTC'\r\n" > "${env_file}"
+  chmod 0644 "${env_file}"
+  (
+    # shellcheck source=scripts/lib/common.sh
+    source "${common_lib}"
+    prepare_env_file "${env_file}" 0 2>/dev/null
+    env_file_has_crlf "${env_file}" || fail "Read-only env preparation changed line endings."
+    [[ "$(stat -c '%a' "${env_file}")" == 644 ]] || fail "Read-only env preparation changed permissions."
+    prepare_env_file "${env_file}" 1 2>/dev/null
+    ! env_file_has_crlf "${env_file}" || fail "Env repair left Windows line endings."
+    [[ "$(stat -c '%a' "${env_file}")" == 600 ]] || fail "Env repair did not restrict permissions."
+    load_env_file "${env_file}"
+    [[ "${COMMON_PATH}" == /srv/media && "${TZ}" == UTC ]] || fail "Repaired env file did not load cleanly."
   )
 }
 

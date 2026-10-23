@@ -28,10 +28,10 @@ Add credentials in Homarr's integration settings, not in board notes or Git. Use
 | qBittorrent | `http://gluetun:8080` | `/qbittorrent/` |
 | Gluetun | `http://gluetun:8000` | none |
 | Glances | `http://glances:61208` | none |
-| Docker | `http://docker-socket-proxy:2375` | none |
 
-Docker statistics are read-only: Homarr has no Docker socket mount, and the proxy rejects write requests. Glances and the Gluetun control server have no published host ports.
-Read-only Docker inspection still exposes container metadata, including environment secrets, to the trusted administrator integration. Keep it private. The proxy also denies archive/export, logs, process, and lifecycle operations; a read-only socket mount alone is not an API authorization boundary.
+Glances and the Gluetun control server have no published host ports.
+
+There is no Docker integration. Homarr has no access to the Docker API, so it cannot read container settings or environment secrets, and the stack saves the memory of a socket proxy. Use Glances for host health and `docker compose ps` for container state. If you are upgrading from a version with Docker Stats, remove the Docker integration and its widget in Homarr, then run `docker compose up -d --remove-orphans` to delete the old `docker-socket-proxy` container.
 
 The minimal Glances image supplies the CPU, memory, filesystem, and psutil sensor APIs used here. Temperature availability depends on the NAS exposing sensors; unavailable readings should remain **Not reported**. Bridge-network throughput and process details are deliberately omitted. Do not switch to the full image merely for a missing host sensor.
 
@@ -61,17 +61,16 @@ Add these widgets in order:
 1. Glances System Health: CPU, memory, uptime, `/host-data` capacity, and temperature when available
 2. Glances System Resources with CPU and memory. Omit bridge-network throughput.
 3. Gluetun status: VPN tunnel, DNS status, and public egress IP
-4. Read-only Docker Stats
-5. Launch tiles: Jellyfin, Seerr, Sonarr, Radarr, Bazarr, Prowlarr, qBittorrent, and `/health`
-6. Jellyfin active streams
-7. Seerr request statistics and recent pending or failed requests
-8. Sonarr/Radarr missing-media and queue widgets
-9. qBittorrent active downloads: name, category, progress, state, speed, and remaining time only
-10. Prowlarr indexer status and Bazarr subtitle status
+4. Launch tiles: Jellyfin, Seerr, Sonarr, Radarr, Bazarr, Prowlarr, qBittorrent, and `/health`
+5. Jellyfin active streams
+6. Seerr request statistics and recent pending or failed requests
+7. Sonarr/Radarr missing-media and queue widgets
+8. qBittorrent active downloads: name, category, progress, state, speed, and remaining time only
+9. Prowlarr indexer status and Bazarr subtitle status
 
-Do not add Docker lifecycle controls or qBittorrent pause/delete controls. Never display API keys, WireGuard values, VPN endpoints, torrent hashes, trackers, peer IPs, filesystem paths, process commands, logs, or tokenized URLs.
+Do not add qBittorrent pause/delete controls. Never display API keys, WireGuard values, VPN endpoints, torrent hashes, trackers, peer IPs, filesystem paths, process commands, logs, or tokenized URLs.
 
-On desktop, place host health across the first row, Docker Stats across the second row, two rows of four launch tiles, paired media/request widgets, then paired queue/download widgets. Tablet and mobile preserve that order while stacking complex widgets full width.
+On desktop, place host health and Gluetun status across the first row, two rows of four launch tiles, paired media/request widgets, then paired queue/download widgets. Tablet and mobile preserve that order while stacking complex widgets full width.
 
 ## Appearance and accessibility
 

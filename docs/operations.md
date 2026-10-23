@@ -77,8 +77,8 @@ Security model:
 - nginx is intended for LAN use. Router rules should keep `NGINX_PORT` non-public; Docker-published ports usually bypass the NAS host firewall.
 - Seerr stays direct on its configured port.
 - Homarr is public only inside the trusted LAN. Its NAS Control Room board requires credentials.
-- Glances, Docker telemetry, and Gluetun telemetry have no published host ports.
-- Docker telemetry uses a trusted administrator integration. Read-only container inspection can expose environment secrets even when write, archive, export, logs, process, and lifecycle operations are denied; keep credentials and this integration off the public board.
+- Glances and Gluetun telemetry have no published host ports.
+- No container can reach the Docker API. Keep credentials and private telemetry off the public board.
 
 ## Memory on a small NAS
 
