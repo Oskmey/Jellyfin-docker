@@ -74,11 +74,38 @@ The nginx `/health` endpoint checks proxy liveness, not upstream readiness. App 
 
 Security model:
 - qBittorrent is the only service routed through Gluetun/Mullvad.
-- nginx is intended for LAN use. Router or NAS firewall rules should keep `NGINX_PORT` non-public.
+- nginx is intended for LAN use. Router rules should keep `NGINX_PORT` non-public; Docker-published ports usually bypass the NAS host firewall.
 - Seerr stays direct on its configured port.
 - Homarr is public only inside the trusted LAN. Its NAS Control Room board requires credentials.
 - Glances, Docker telemetry, and Gluetun telemetry have no published host ports.
 - Docker telemetry uses a trusted administrator integration. Read-only container inspection can expose environment secrets even when write, archive, export, logs, process, and lifecycle operations are denied; keep credentials and this integration off the public board.
+
+## Memory on a small NAS
+
+On a NAS with about 4 GB of RAM, the stack can exceed physical memory while downloading. Paging to the same HDD that holds media and databases then slows everything, including the VPN. Measure before changing anything:
+
+```bash
+docker stats --no-stream
+free -m
+vmstat 5      # watch the si/so swap columns during a download
+docker compose logs gluetun | grep -i -E 'userspace|kernelspace|restarting'
+```
+
+If Gluetun reports the userspace WireGuard implementation, VPN throughput is CPU-bound on the NAS; freeing memory and CPU helps more than VPN settings.
+
+Non-critical services have memory caps so their runtimes collect garbage sooner instead of growing into swap:
+
+| Service | Variable | Default |
+| --- | --- | --- |
+| Prowlarr | `PROWLARR_MEM_LIMIT` | `768m` |
+| Bazarr | `BAZARR_MEM_LIMIT` | `1g` |
+| FlareSolverr | `FLARESOLVERR_MEM_LIMIT` | `1g` |
+| Homarr | `HOMARR_MEM_LIMIT` | `1g` |
+| Glances | `GLANCES_MEM_LIMIT` | `256m` |
+
+Set a variable in `.env` and recreate that service to change its cap. A container that keeps restarting with exit code 137 hit its cap; raise it. Jellyfin, qBittorrent, Sonarr, Radarr, and Seerr are deliberately uncapped. Also apply the qBittorrent and Jellyfin low-memory settings in [`first-run.md`](first-run.md).
+
+If no Prowlarr indexer uses the FlareSolverr proxy tag, stopping FlareSolverr frees its headless browser.
 
 ## Backup basics
 

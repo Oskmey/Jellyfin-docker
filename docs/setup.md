@@ -60,7 +60,7 @@ Do not start by changing NAS kernel modules or graphics drivers if transcoding f
 
 `BIND_IP=0.0.0.0` exposes the nginx and Seerr ports on all NAS interfaces, which is convenient for normal LAN use. Use `BIND_IP=127.0.0.1` for localhost-only testing.
 
-Keep both exposed ports behind your NAS or router firewall. Do not forward nginx, Seerr, or the qBittorrent WebUI publicly.
+Keep both exposed ports behind your router. Docker-published ports usually bypass the NAS host firewall, so do not rely on it alone. Do not forward nginx, Seerr, or the qBittorrent WebUI publicly.
 
 ## Start stack
 
@@ -87,7 +87,7 @@ Both check scripts are read-only by default. If you want them to normalize `.env
 
 Notes:
 - qBittorrent is the only service intentionally routed through Gluetun/Mullvad.
-- nginx is intended for LAN use. Keep `NGINX_PORT` behind your router or NAS firewall.
+- nginx is intended for LAN use. Keep `NGINX_PORT` behind your router.
 - Seerr remains direct on its configured port and is not protected by nginx access rules.
 - The stack uses container healthchecks so dependent services wait for healthier upstreams during startup.
 - Healthchecks report status; they do not automatically restart unhealthy containers or prove download/import/playback works. Only configured `depends_on` relationships wait for startup health.

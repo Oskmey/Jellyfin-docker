@@ -79,6 +79,16 @@ lint_yaml() {
   )
 }
 
+validate_nginx() {
+  local nginx_image
+
+  log_step "nginx validation"
+  nginx_image="$(awk '/^  nginx-proxy:/ {found = 1} found && $1 == "image:" {print $2; exit}' "${REPO_ROOT}/docker-compose.yml")"
+  [[ -n "${nginx_image}" ]] || fail "Cannot determine the nginx-proxy image."
+  # Variable upstreams resolve per request, so syntax checks need no running apps.
+  docker run --rm -v "${REPO_ROOT}/nginx/conf.d:/etc/nginx/conf.d:ro" --entrypoint nginx "${nginx_image}" -t
+}
+
 validate_compose() {
   log_step "Compose validation"
 
@@ -452,6 +462,23 @@ test_security_helpers() {
       return 28
     }
     if http_status http://example.invalid >/dev/null; then fail "HTTP probe swallowed a transport failure."; fi
+    if (expect_redirect_within /jellyfin/ /jellyfin/) >/dev/null 2>&1; then
+      fail "Redirect check swallowed a transport failure."
+    fi
+
+    # shellcheck disable=SC2317,SC2329 # Called by the sourced redirect check.
+    curl() {
+      [[ "$*" == *'--connect-timeout 5'* && "$*" == *'--max-time 15'* ]] || fail "Redirect probe has no timeout."
+      printf '%s' "${fixture_location}"
+    }
+    fixture_location='http://127.0.0.1:8090/jellyfin/web/'
+    expect_redirect_within /jellyfin/ /jellyfin/ >/dev/null
+    fixture_location=''
+    expect_redirect_within /jellyfin/ /jellyfin/ >/dev/null
+    fixture_location='http://127.0.0.1:8090/web/'
+    if (expect_redirect_within /jellyfin/ /jellyfin/) >/dev/null 2>&1; then
+      fail "Diagnostics accepted a redirect that escapes the Jellyfin prefix."
+    fi
 
     # shellcheck disable=SC2317,SC2329 # Called indirectly through DOCKER_BIN.
     fake_docker() {
@@ -486,6 +513,7 @@ main() {
   check_repo_safety
   lint_shell
   lint_yaml
+  validate_nginx
   validate_compose
   test_data_scripts
 

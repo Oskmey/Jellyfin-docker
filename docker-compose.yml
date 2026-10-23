@@ -30,7 +30,7 @@ x-logging: &default_logging
 
 services:
   gluetun:
-    image: qmcgaw/gluetun:latest
+    image: qmcgaw/gluetun:v3
     container_name: gluetun
     logging: *default_logging
     cap_add:
@@ -71,12 +71,14 @@ services:
     depends_on:
       gluetun:
         condition: service_healthy
+        restart: true
     restart: unless-stopped
     environment:
       <<: *linuxserver_env
       WEBUI_PORT: 8080
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8080 || exit 1"]
+      # Also fail when the shared namespace has lost Gluetun's tunnel.
+      test: ["CMD-SHELL", "grep -q 'tun0:' /proc/net/dev && wget -q --spider http://127.0.0.1:8080 || exit 1"]
       <<: *http_healthcheck_defaults
     volumes:
       - ${COMMON_PATH:?Set COMMON_PATH in .env}/Qbittorrent/Config:/config
@@ -119,6 +121,7 @@ services:
   prowlarr:
     image: lscr.io/linuxserver/prowlarr:latest
     container_name: prowlarr
+    mem_limit: ${PROWLARR_MEM_LIMIT:-768m}
     logging: *default_logging
     restart: unless-stopped
     networks:
@@ -136,6 +139,7 @@ services:
   bazarr:
     image: lscr.io/linuxserver/bazarr:latest
     container_name: bazarr
+    mem_limit: ${BAZARR_MEM_LIMIT:-1g}
     logging: *default_logging
     restart: unless-stopped
     networks:
@@ -164,7 +168,7 @@ services:
     environment:
       TZ: ${TZ:?Set TZ in .env}
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8096/health || curl -fsS http://127.0.0.1:8096 || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8096/health || exit 1"]
       <<: *http_healthcheck_defaults
     devices:
       - /dev/dri:/dev/dri
@@ -177,6 +181,7 @@ services:
   flaresolverr:
     image: ghcr.io/flaresolverr/flaresolverr:latest
     container_name: flaresolverr
+    mem_limit: ${FLARESOLVERR_MEM_LIMIT:-1g}
     logging: *default_logging
     restart: unless-stopped
     networks:
@@ -202,13 +207,6 @@ services:
       - media
     ports:
       - "${BIND_IP:-0.0.0.0}:${JELLYSEERR_PORT:-5055}:5055"
-    depends_on:
-      jellyfin:
-        condition: service_healthy
-      sonarr:
-        condition: service_healthy
-      radarr:
-        condition: service_healthy
     environment:
       LOG_LEVEL: info
       TZ: ${TZ:?Set TZ in .env}
@@ -221,6 +219,7 @@ services:
   homarr:
     image: ghcr.io/homarr-labs/homarr:latest
     container_name: homarr
+    mem_limit: ${HOMARR_MEM_LIMIT:-1g}
     logging: *default_logging
     restart: unless-stopped
     networks:
@@ -244,6 +243,7 @@ services:
   glances:
     image: nicolargo/glances:latest
     container_name: glances
+    mem_limit: ${GLANCES_MEM_LIMIT:-256m}
     logging: *default_logging
     restart: unless-stopped
     pid: host
@@ -313,7 +313,7 @@ services:
     networks:
       - media
     healthcheck:
-      test: ["CMD-SHELL", "nginx -t"]
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3

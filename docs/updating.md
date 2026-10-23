@@ -1,6 +1,6 @@
 # Updating
 
-All 13 services deliberately use literal `:latest` image tags. Eight already floated; five previously pinned images now follow the same policy. Pulls are manual, staged per service, and gated by release notes and runtime checks. Inspect the image actually pulled before deploying it: a floating tag can change after this document is written.
+Services use literal `:latest` image tags, except Gluetun, which uses `:v3` to follow its newest stable release instead of development builds. Pulls are manual, staged per service, and gated by release notes and runtime checks. Inspect the image actually pulled before deploying it: a floating tag can change after this document is written.
 
 ## Release snapshot: 2026-10-08
 
@@ -17,10 +17,10 @@ All 13 services deliberately use literal `:latest` image tags. Eight already flo
 | FlareSolverr | v3.5.2 |
 | Glances | v4.5.7, minimal image |
 | socket-proxy | 3.4.6-r0-ls101 |
-| Gluetun | master build, revision `ded7fd059ca0150aec51f2baff2337133387204c` |
+| Gluetun | `v3` stable release tag (previously a `latest` master build) |
 | nginx | 1.31.6 mainline, October 6 rebuild |
 
-Gluetun `latest` is a master build, not the separate stable v3.41.3 release. nginx `latest` is mainline, not its stable branch. These distinctions remain deliberate under the requested tag policy. The snapshot records researched versions, not a promise of what a later pull will contain.
+Gluetun `latest` is a master build, so the stack uses its stable `v3` tag for the VPN path. nginx `latest` is mainline, not its stable branch; that remains deliberate under the tag policy. The snapshot records researched versions, not a promise of what a later pull will contain.
 
 ## Before the first migration
 

@@ -17,6 +17,7 @@ Usage: scripts/security-check.sh [--env-file PATH] [--fix-env]
 Checks:
   - docker compose config validation
   - nginx syntax and local route responses
+  - prefix-stripped routes redirect within their prefix
   - Homarr/Glances isolation from the Docker socket and host ports
   - read-only Docker socket proxy behavior
   - authenticated, read-only Gluetun telemetry configuration
@@ -519,6 +520,25 @@ expect_route_ok() {
   esac
 }
 
+expect_redirect_within() {
+  local path="$1"
+  local prefix="$2"
+  local location
+  local location_path
+
+  if ! command -v curl >/dev/null 2>&1; then
+    warn "curl is unavailable; skipped the redirect prefix check for ${path}."
+    return
+  fi
+
+  location="$(curl -sS --connect-timeout 5 --max-time 15 -o /dev/null -w '%{redirect_url}' \
+    "http://${ROUTE_CHECK_HOST}:${NGINX_PORT:-8090}${path}")" || fail "Route ${path} transport probe failed."
+  [[ -n "${location}" ]] || return 0
+  location_path="/${location#*://*/}"
+  [[ "${location_path}" == "${prefix}"* ]] || fail "Route ${path} redirects outside ${prefix}: ${location}"
+  log_ok "Route ${path} redirects within ${prefix}."
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --env-file)
@@ -608,6 +628,7 @@ expect_route_ok "/health"
 expect_route_ok "/"
 expect_route_ok "/jellyfin"
 expect_route_ok "/jellyfin/"
+expect_redirect_within "/jellyfin/" "/jellyfin/"
 expect_route_ok "/qbittorrent"
 expect_route_ok "/qbittorrent/"
 expect_route_ok "/sonarr"

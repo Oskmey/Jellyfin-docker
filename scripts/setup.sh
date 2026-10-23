@@ -383,6 +383,26 @@ prompt_required() {
   printf '%s' "${value}"
 }
 
+prompt_secret_required() {
+  local prompt="$1"
+  local default="$2"
+  local value=""
+
+  while [[ -z "${value}" ]]; do
+    if [[ -n "${default}" ]]; then
+      read -r -s -p "${prompt} [$(mask_value "${default}"), Enter keeps it]: " value
+    else
+      read -r -s -p "${prompt}: " value
+    fi
+    [[ ! -t 0 ]] || printf '\n' >&2
+    if [[ -z "${value}" ]]; then
+      value="${default}"
+    fi
+  done
+
+  printf '%s' "${value}"
+}
+
 validate_port() {
   local key="$1"
   local value="${!key:-}"
@@ -697,7 +717,7 @@ interactive_collect() {
   printf "%b\n" "${C_BOLD}Required WireGuard Settings${C_RESET}"
 
   WIREGUARD_ADDRESSES="$(prompt_required "WIREGUARD_ADDRESSES" "${WIREGUARD_ADDRESSES:-}")"
-  WIREGUARD_PRIVATE_KEY="$(prompt_required "WIREGUARD_PRIVATE_KEY" "${WIREGUARD_PRIVATE_KEY:-}")"
+  WIREGUARD_PRIVATE_KEY="$(prompt_secret_required "WIREGUARD_PRIVATE_KEY" "${WIREGUARD_PRIVATE_KEY:-}")"
   WIREGUARD_ALLOWED_IPS="$(prompt_default "WIREGUARD_ALLOWED_IPS" "${default_allowed_ips}")"
   ensure_generated_secrets 0
 }

@@ -21,6 +21,7 @@ Use this order for a clean first setup:
 - In Settings -> Advanced, set **Network Interface** to `tun0`
 - Set **Optional IP address to bind to** to `All IPv4 addresses`
 - Keep DHT and PeX enabled, apply the settings, and restart only qBittorrent
+- On a low-memory NAS, also set **Disk IO type** in Settings -> Advanced to `POSIX-compliant`. The default memory-mapped I/O can push the NAS into swap while downloading. Keep global connections and active torrents modest, for example 200 connections and 3-5 active downloads.
 - Run `./scripts/security-check.sh` and confirm qBittorrent has TCP and UDP listeners on `tun0` and a nonzero DHT node count
 - Do not expose the qBittorrent WebUI publicly. It should stay reachable only through the LAN nginx route.
 
@@ -37,6 +38,7 @@ Use this order for a clean first setup:
 - URL: `http://<host>:<NGINX_PORT>/sonarr/`
 - Root folder: `/data/tvshows`
 - Enable **Use Hardlinks instead of Copy** in advanced Media Management when the host download/library folders share one filesystem.
+- Set **Minimum Free Space** in Media Management high enough, for example 10 GB, that downloads cannot fill the volume holding every app database.
 - Download client:
   - qBittorrent host: `gluetun`
   - Port: `8080`
@@ -79,6 +81,7 @@ Use this order for a clean first setup:
 - Install a stable Intro Skipper release compatible with your Jellyfin major version; follow the compatibility gate in [`updating.md`](updating.md).
 - Restart Jellyfin after install
 - Run the intro detection scheduled task in Jellyfin (Dashboard -> Scheduled Tasks)
+- On a low-memory NAS, schedule intro detection, trickplay image extraction, and chapter image extraction overnight, or disable trickplay and chapter images, so they do not overlap with downloads
 
 10. Trigger library scans
 - In Jellyfin, rescan libraries
