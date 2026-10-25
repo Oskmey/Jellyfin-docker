@@ -49,14 +49,14 @@ nginx error logs can still contain full request URLs and headers during failures
 
 Run environment checks:
 ```bash
-./scripts/doctor.sh
-./scripts/security-check.sh
+./scripts/stack.sh doctor
+./scripts/stack.sh security-check
 ```
 
 If you need to repair `.env` formatting or permissions explicitly:
 ```bash
-./scripts/doctor.sh --fix-env
-./scripts/security-check.sh --fix-env
+./scripts/stack.sh doctor --fix-env
+./scripts/stack.sh security-check --fix-env
 ```
 
 Proxy health endpoint:
@@ -112,7 +112,7 @@ If no Prowlarr indexer uses the FlareSolverr proxy tag, stopping FlareSolverr fr
 For a consistent raw backup, stop the configuration writers first. Before an upgrade, follow the image checkpoint and migration gates in [`updating.md`](updating.md):
 ```bash
 docker compose stop
-./scripts/backup-configs.sh
+./scripts/stack.sh backup
 ```
 Restart existing containers with `docker compose start` after a routine backup. Follow the update gate before recreating containers for a migration.
 
@@ -134,7 +134,7 @@ App archives can still contain saved credentials and API keys. Keep them outside
 
 Media libraries and downloads are excluded. To write backups somewhere else:
 ```bash
-./scripts/backup-configs.sh --output-dir /path/to/backups
+./scripts/stack.sh backup --output-dir /path/to/backups
 ```
 
 Before stopping services, also create a Homarr export after board or integration changes. Keep `HOMARR_SECRET_ENCRYPTION_KEY` separately; it is required to decrypt restored integration credentials. The stopped full AppData archive is the migration checkpoint.
@@ -142,7 +142,7 @@ Before stopping services, also create a Homarr export after board or integration
 Validate an archive before restoring it:
 
 ```bash
-./scripts/restore-configs.sh \
+./scripts/stack.sh restore \
   --archive /path/to/media-stack-configs-TIMESTAMP.SUFFIX.tar.gz \
   --dry-run
 ```
@@ -164,7 +164,7 @@ Useful checks:
 ls -l /dev/dri
 getent group render
 stat -c '%g' /dev/dri/renderD128
-./scripts/doctor.sh
+./scripts/stack.sh doctor
 ```
 
 During a transcode, host tools such as `intel_gpu_top` can confirm whether the iGPU is active when available on your NAS.

@@ -29,7 +29,7 @@ It includes:
 
 2. Run interactive setup
 ```bash
-./scripts/setup.sh
+./scripts/stack.sh setup
 ```
 This generates `.env`, creates only missing data and configuration folders, creates the restricted Gluetun telemetry policy, and validates your Compose config.
 
@@ -58,7 +58,7 @@ To fill in settings manually, copy and edit `.env.example`, then run setup witho
 ```bash
 cp .env.example .env
 # Edit .env before continuing.
-./scripts/setup.sh --non-interactive --env-file .env
+./scripts/stack.sh setup --non-interactive --env-file .env
 ```
 Setup creates the required folders, Gluetun/Glances files, and missing secrets; copying `.env` alone is insufficient.
 
@@ -102,8 +102,8 @@ docker compose logs -f
 
 Preflight checks:
 ```bash
-./scripts/doctor.sh
-./scripts/security-check.sh
+./scripts/stack.sh doctor
+./scripts/stack.sh security-check
 ```
 
 CI checks:
@@ -113,18 +113,18 @@ CI checks:
 
 Optional env-file repair if you need the scripts to normalize `.env` line endings or tighten permissions:
 ```bash
-./scripts/doctor.sh --fix-env
-./scripts/security-check.sh --fix-env
+./scripts/stack.sh doctor --fix-env
+./scripts/stack.sh security-check --fix-env
 ```
 
 Back up app configs only:
 ```bash
-./scripts/backup-configs.sh
+./scripts/stack.sh backup
 ```
 
 Validate a backup before restoring it:
 ```bash
-./scripts/restore-configs.sh --archive /path/to/media-stack-configs-TIMESTAMP.SUFFIX.tar.gz --dry-run
+./scripts/stack.sh restore --archive /path/to/media-stack-configs-TIMESTAMP.SUFFIX.tar.gz --dry-run
 ```
 
 ## Documentation
@@ -140,12 +140,13 @@ Validate a backup before restoring it:
 
 - `docker-compose.yml`: stack definition
 - `.env.example`: config template
-- `scripts/setup.sh`: interactive setup + env generation
-- `scripts/doctor.sh`: read-only environment and compose validation by default (`--fix-env` is opt-in)
-- `scripts/security-check.sh`: read-only VPN and local routing verification by default (`--fix-env` is opt-in)
-- `scripts/backup-configs.sh`: config-only backup archives under `${COMMON_PATH}/Backups`
-- `scripts/restore-configs.sh`: allowlisted config restore with dry-run and overwrite protection
-- `scripts/lib/common.sh`: shared Docker detection, env loading, and validation helpers used by the scripts
+- `scripts/stack.sh`: single helper script; run `./scripts/stack.sh help` for its commands:
+  - `setup`: interactive setup + env generation
+  - `doctor`: read-only environment and compose validation by default (`--fix-env` is opt-in)
+  - `security-check`: read-only VPN and local routing verification by default (`--fix-env` is opt-in)
+  - `backup`: config-only backup archives under `${COMMON_PATH}/Backups` (`--keep N` prunes older archives)
+  - `restore`: allowlisted config restore with dry-run and overwrite protection
+- `scripts/ci.sh`: repository checks run by GitHub Actions
 - `nginx/conf.d/default.conf`: reverse proxy routes
 - `docs/`: onboarding, operations, and troubleshooting
 

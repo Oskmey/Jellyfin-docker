@@ -12,7 +12,7 @@ Use this order for a clean first setup:
   - Jellyfin Dashboard -> Playback -> Transcoding
   - Prefer Intel Quick Sync when available. Use VA-API as the fallback.
   - VA-API device: `/dev/dri/renderD128`
-  - If transcoding fails, run `./scripts/doctor.sh` and verify `JELLYFIN_RENDER_GID`
+  - If transcoding fails, run `./scripts/stack.sh doctor` and verify `JELLYFIN_RENDER_GID`
 
 2. Configure qBittorrent
 - URL: `http://<host>:<NGINX_PORT>/qbittorrent/`
@@ -22,7 +22,7 @@ Use this order for a clean first setup:
 - Set **Optional IP address to bind to** to `All IPv4 addresses`
 - Keep DHT and PeX enabled, apply the settings, and restart only qBittorrent
 - On a low-memory NAS, also set **Disk IO type** in Settings -> Advanced to `POSIX-compliant`. The default memory-mapped I/O can push the NAS into swap while downloading. Keep global connections and active torrents modest, for example 200 connections and 3-5 active downloads.
-- Run `./scripts/security-check.sh` and confirm qBittorrent has TCP and UDP listeners on `tun0` and a nonzero DHT node count
+- Run `./scripts/stack.sh security-check` and confirm qBittorrent has TCP and UDP listeners on `tun0` and a nonzero DHT node count
 - Do not expose the qBittorrent WebUI publicly. It should stay reachable only through the LAN nginx route.
 
 3. Configure Prowlarr

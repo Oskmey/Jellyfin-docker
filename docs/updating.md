@@ -53,7 +53,7 @@ Save the output outside Git alongside a copy of the corresponding Compose defini
 
 ```bash
 docker compose stop
-./scripts/backup-configs.sh
+./scripts/stack.sh backup
 ```
 
 Do not use a live raw SQLite copy as the migration checkpoint. Media and downloads are excluded; Gluetun auth is regenerated from the separately preserved key. See [`operations.md`](operations.md) for archive contents.
@@ -80,7 +80,7 @@ Retain `VPN_INTERFACE=tun0`, then check tunnel listeners, egress, and metadata/d
 
 Run the applicable gates before another pull:
 
-- `./scripts/doctor.sh` and `./scripts/security-check.sh`; both are read-only unless `--fix-env` is requested.
+- `./scripts/stack.sh doctor` and `./scripts/stack.sh security-check`; both are read-only unless `--fix-env` is requested.
 - Browser login and authenticated internal integrations for the upgraded app.
 - Sonarr/Radarr download-client tests, import paths, and hardlinks on an existing imported file; retain the shared `/data` mount.
 - Jellyfin wizard/login at `/jellyfin/web/index.html`, empty app Base URL, playback, subtitle and GPU checks. nginx continues stripping the prefix.
@@ -91,6 +91,6 @@ Healthchecks report liveness/readiness and startup dependencies gate only declar
 
 ## Rollback after a migration
 
-Never downgrade only the image against migrated data. Stop configuration writers, preserve the failed state for diagnosis, validate the pre-stage archive with `restore-configs.sh --dry-run`, and restore that checkpoint with the matching pre-stage image references/digests. Since the archive contains the whole allowlisted config checkpoint, align all restored apps with their recorded pre-stage images. `--force` is an explicit overwrite operation; use it only after the failed state is preserved and the restore paths are reviewed.
+Never downgrade only the image against migrated data. Stop configuration writers, preserve the failed state for diagnosis, validate the pre-stage archive with `scripts/stack.sh restore --dry-run`, and restore that checkpoint with the matching pre-stage image references/digests. Since the archive contains the whole allowlisted config checkpoint, align all restored apps with their recorded pre-stage images. `--force` is an explicit overwrite operation; use it only after the failed state is preserved and the restore paths are reviewed.
 
 Keep `.env` and its encryption key consistent with restored data, and regenerate required auth/config files through non-interactive setup when recovering on a new host. Recreate services, run the same gates, and retain the checkpoint until recovery is verified. A mutable `latest` tag is not a rollback identity.

@@ -9,8 +9,8 @@ Cause:
 
 Fix:
 ```bash
-./scripts/setup.sh
-./scripts/doctor.sh
+./scripts/stack.sh setup
+./scripts/stack.sh doctor
 ```
 
 ## Services start but route returns 502
@@ -56,11 +56,11 @@ Fix:
 - keep the configured VPN interface `tun0` aligned with qBittorrent's binding
 - run the security verification script:
 ```bash
-./scripts/security-check.sh
+./scripts/stack.sh security-check
 ```
 - if the script warns about `.env` formatting or permissions and you want it repaired automatically:
 ```bash
-./scripts/security-check.sh --fix-env
+./scripts/stack.sh security-check --fix-env
 ```
 - check Gluetun logs:
 ```bash
@@ -75,14 +75,14 @@ First determine the scope:
 
 Run the read-only runtime checks:
 ```bash
-./scripts/security-check.sh
+./scripts/stack.sh security-check
 ```
 
 If the script reports that qBittorrent is not listening on `tun0`, or that DHT remains at zero nodes:
 
 1. Back up the application configs:
    ```bash
-   ./scripts/backup-configs.sh
+   ./scripts/stack.sh backup
    ```
 2. In qBittorrent, open Settings -> Advanced.
 3. Set **Network Interface** to `tun0`.
@@ -92,7 +92,7 @@ If the script reports that qBittorrent is not listening on `tun0`, or that DHT r
    ```bash
    docker compose restart qbittorrent
    ```
-7. Run `./scripts/security-check.sh` again. It should report TCP and UDP listeners on the current `tun0` address and a nonzero DHT node count.
+7. Run `./scripts/stack.sh security-check` again. It should report TCP and UDP listeners on the current `tun0` address and a nonzero DHT node count.
 
 Gluetun can rebuild its VPN connection after a failed healthcheck while the qBittorrent container keeps running. If qBittorrent does not rebind to the recreated tunnel, its WebUI can remain healthy even though magnet discovery is broken. Tracker messages such as `Operation not permitted` and timeouts can be consequences of the unavailable VPN path.
 
@@ -142,7 +142,7 @@ Fix:
 ls -l /dev/dri
 getent group render
 stat -c '%g' /dev/dri/renderD128
-./scripts/doctor.sh
+./scripts/stack.sh doctor
 ```
 
 Set `JELLYFIN_RENDER_GID` in `.env` to the numeric group shown for `/dev/dri/renderD128`, especially if the named render group differs, then recreate Jellyfin:
@@ -211,5 +211,5 @@ curl -fsS "http://localhost:${NGINX_PORT:-8090}/health"
 
 Verify proxy routes locally:
 ```bash
-./scripts/security-check.sh
+./scripts/stack.sh security-check
 ```

@@ -94,6 +94,6 @@ An empty queue is healthy, a missing sensor is **Not reported**, and VPN status 
 
 Use Homarr's built-in backup export after creating the boards and after material dashboard changes. Store the ZIP with mode `0600` outside Git and outside the live AppData folder.
 
-The backup still depends on `HOMARR_SECRET_ENCRYPTION_KEY`. Keep that value in a password manager or another separate secret backup. Stop writers before `scripts/backup-configs.sh` archives AppData. For a major migration, keep the complete stopped AppData and pre-upgrade image checkpoint as described in [`updating.md`](updating.md); an export does not replace that rollback checkpoint.
+The backup still depends on `HOMARR_SECRET_ENCRYPTION_KEY`. Keep that value in a password manager or another separate secret backup. Stop writers before `scripts/stack.sh backup` archives AppData. For a major migration, keep the complete stopped AppData and pre-upgrade image checkpoint as described in [`updating.md`](updating.md); an export does not replace that rollback checkpoint.
 
 Before deleting the legacy `${COMMON_PATH}/Homepage/Config`, restore the Homarr export into a temporary Homarr instance and verify users, boards, integrations, and appearance.

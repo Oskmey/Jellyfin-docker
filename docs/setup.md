@@ -12,7 +12,7 @@
 ## Interactive setup (recommended)
 
 ```bash
-./scripts/setup.sh
+./scripts/stack.sh setup
 ```
 
 What it does:
@@ -29,7 +29,7 @@ What it does:
 Use this when provisioning through scripts or CI:
 
 ```bash
-./scripts/setup.sh --non-interactive --env-file .env
+./scripts/stack.sh setup --non-interactive --env-file .env
 ```
 
 Requirements:
@@ -78,8 +78,8 @@ If Docker is not on `PATH`, run your host's compose binary directly:
 ## Verify
 
 ```bash
-./scripts/doctor.sh
-./scripts/security-check.sh
+./scripts/stack.sh doctor
+./scripts/stack.sh security-check
 curl -fsS "http://localhost:${NGINX_PORT:-8090}/health"
 ```
 
