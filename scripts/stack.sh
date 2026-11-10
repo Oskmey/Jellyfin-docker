@@ -392,7 +392,29 @@ Environment:
 USAGE
 }
 
+setup_print_banner() {
+  # Quoted heredoc: the art's backslashes and backticks are printed literally.
+  printf "%b" "${C_BOLD}${C_CYAN}"
+  cat <<'BANNER'
+                     _           _   _
+  ___ _ __ ___  __ _| |_ ___  __| | | |__  _   _
+ / __| '__/ _ \/ _` | __/ _ \/ _` | | '_ \| | | |
+| (__| | |  __/ (_| | ||  __/ (_| | | |_) | |_| |
+ \___|_|  \___|\__,_|\__\___|\__,_| |_.__/ \__, |
+                                           |___/
+                  _
+         ___  ___| | ___ __ ___   ___ _   _
+        / _ \/ __| |/ / '_ ` _ \ / _ \ | | |
+       | (_) \__ \   <| | | | | |  __/ |_| |
+        \___/|___/_|\_\_| |_| |_|\___|\__, |
+                                      |___/
+BANNER
+  printf "%b" "${C_RESET}"
+}
+
 setup_print_header() {
+  printf "%b\n" "${C_BOLD}${C_BLUE}============================================================${C_RESET}"
+  setup_print_banner
   printf "%b\n" "${C_BOLD}${C_BLUE}============================================================${C_RESET}"
   printf "%b\n" "${C_BOLD}${C_BLUE}  Jellyfin Docker Setup${C_RESET}"
   printf "%b\n" "${C_DIM}  Repository: ${REPO_ROOT}${C_RESET}"
