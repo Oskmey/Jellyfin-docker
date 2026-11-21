@@ -9,6 +9,8 @@ x-linuxserver-env: &linuxserver_env
   PGID: ${PGID:?Set PGID in .env}
   TZ: ${TZ:?Set TZ in .env}
 
+# Prowlarr and FlareSolverr use public resolvers directly: adding new indexers
+# failed with the default Docker/router DNS (see commit 223f154).
 x-service-dns: &service_dns
   - 1.1.1.1
   - 1.0.0.1

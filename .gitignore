@@ -1,2 +1,5 @@
 .env
+# Temporary and backup copies of .env (e.g. .env.tmp.* left by an interrupted setup).
+.env.*
+!.env.example
 /data/

@@ -51,6 +51,14 @@ check_repo_safety() {
     fail ".env is not ignored. Add it to .gitignore."
   fi
 
+  local env_copy
+  for env_copy in .env.tmp.ABC123 .env.bak; do
+    git -C "${REPO_ROOT}" check-ignore -q --no-index "${env_copy}" || fail "${env_copy} is not ignored. Add .env.* to .gitignore."
+  done
+  if git -C "${REPO_ROOT}" check-ignore -q --no-index .env.example; then
+    fail ".env.example is ignored. Keep !.env.example in .gitignore."
+  fi
+
   if grep -Eq '^WIREGUARD_(PRIVATE_KEY|PUBLIC_KEY)=[^[:space:]].*$' "${REPO_ROOT}/.env.example"; then
     fail ".env.example contains a non-empty WireGuard key."
   fi
@@ -475,6 +483,30 @@ test_security_helpers() {
     fixture_location='http://127.0.0.1:8090/web/'
     if (security_expect_redirect_within /jellyfin/ /jellyfin/) >/dev/null 2>&1; then
       fail "Diagnostics accepted a redirect that escapes the Jellyfin prefix."
+    fi
+
+    # shellcheck disable=SC2317,SC2329 # Called indirectly through COMPOSE_CMD.
+    compose_stub() {
+      case "$*" in
+        *'config --services') printf '%s\n' gluetun nginx-proxy jellyseerr homarr flaresolverr ;;
+        *'ps -q flaresolverr') ;;
+        *'ps -q '*) printf 'id-%s\n' "${*: -1}" ;;
+      esac
+    }
+    # Allowed services always publish; fixture_published adds one that must not.
+    # shellcheck disable=SC2317,SC2329 # Called through DOCKER_BIN.
+    docker_stub() {
+      case "${*: -1}" in
+        id-nginx-proxy|id-jellyseerr|"id-${fixture_published}") printf '%s\n' '0.0.0.0 8090' ;;
+      esac
+    }
+    # shellcheck disable=SC2034 # Read by the sourced port check.
+    DOCKER_BIN=docker_stub
+    fixture_published=none
+    security_assert_only_expected_published_ports >/dev/null
+    fixture_published=homarr
+    if (security_assert_only_expected_published_ports) >/dev/null 2>&1; then
+      fail "Port check accepted a published Homarr port."
     fi
   )
 }

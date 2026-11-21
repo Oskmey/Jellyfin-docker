@@ -1149,7 +1149,8 @@ Checks (the stack must be running):
   - docker compose config validation
   - nginx syntax and local route responses
   - prefix-stripped routes redirect within their prefix
-  - Homarr/Glances isolation from the Docker socket and host ports
+  - only nginx and Seerr publish host ports
+  - Homarr/Glances isolation from the Docker socket
   - authenticated, read-only Gluetun telemetry configuration
   - Gluetun health
   - qBittorrent network namespace sharing with Gluetun
@@ -1198,6 +1199,26 @@ security_assert_no_published_ports() {
   bindings="$("${DOCKER_BIN}" inspect --format '{{range .NetworkSettings.Ports}}{{range .}}{{println .HostIp .HostPort}}{{end}}{{end}}' "${container_id}")"
   [[ -z "${bindings}" ]] || fail "${label} unexpectedly publishes a host port: ${bindings}"
   log_ok "${label} has no published host ports."
+}
+
+# Only nginx and Seerr are meant to be reachable from the LAN.
+SECURITY_PUBLISHED_SERVICES=(nginx-proxy jellyseerr)
+
+security_assert_only_expected_published_ports() {
+  local service allowed container_id
+
+  while IFS= read -r service; do
+    [[ -n "${service}" ]] || continue
+    for allowed in "${SECURITY_PUBLISHED_SERVICES[@]}"; do
+      [[ "${service}" == "${allowed}" ]] && continue 2
+    done
+    container_id="$(run_compose --env-file "${ENV_FILE}" ps -q "${service}" < /dev/null)"
+    if [[ -z "${container_id}" ]]; then
+      log_skip "${service} is not running; host port check skipped."
+      continue
+    fi
+    security_assert_no_published_ports "${service}" "${container_id}"
+  done < <(run_compose --env-file "${ENV_FILE}" config --services)
 }
 
 security_assert_no_docker_socket_mount() {
@@ -1515,8 +1536,7 @@ cmd_security_check() {
   [[ "${qbittorrent_mode}" == "container:${gluetun_id}" ]] || fail "qBittorrent is not sharing Gluetun's network namespace: ${qbittorrent_mode}"
   log_ok "qBittorrent shares Gluetun's network namespace."
 
-  security_assert_no_published_ports "Homarr" "${homarr_id}"
-  security_assert_no_published_ports "Glances" "${glances_id}"
+  security_assert_only_expected_published_ports
   security_assert_no_docker_socket_mount "Homarr" "${homarr_id}"
   security_assert_no_docker_socket_mount "Glances" "${glances_id}"
   security_assert_read_only_mount "Gluetun" "${gluetun_id}" "/gluetun/auth/config.toml"
